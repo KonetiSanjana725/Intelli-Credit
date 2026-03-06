@@ -1,4 +1,4 @@
-<img width="1909" height="909" alt="image" src="https://github.com/user-attachments/assets/1d16ff49-c247-4d09-8837-34f332f0c63e" /># Intelli-Credit — AI Credit Appraisal Engine
+Intelli-Credit — AI Credit Appraisal Engine
 
 A fully client-side, single-file AI-powered Credit Appraisal Memorandum (CAM) generator for banking and credit analysis.
 
