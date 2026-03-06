@@ -1,2 +1,98 @@
-# Intelli-Credit
-Intelli-Credit is a single-file, browser-based AI credit appraisal tool. Upload a financial dataset (CSV/Excel/JSON) and it instantly generates a professional Credit Appraisal Memorandum (CAM) with credit scoring, risk flags, financial ratios, and a downloadable PDF — no server, no install required.
+# Intelli-Credit — AI Credit Appraisal Engine
+
+A fully client-side, single-file AI-powered Credit Appraisal Memorandum (CAM) generator for banking and credit analysis.
+
+## Live Demo
+
+> Open `index.html` directly in any browser — no server, no install, no dependencies to manage.
+> Or host on GitHub Pages for a shareable live link.
+
+---
+
+## Features
+
+- **Drag & Drop Dataset Ingestion** — Upload CSV, Excel (.xlsx/.xls), or JSON financial datasets instantly
+- **Auto Field Mapping** — Automatically detects Revenue, EBITDA, PAT, Debt, Equity, DSCR, CIBIL, Litigation, and more
+- **AI Credit Scoring** — Five Cs framework (Character, Capacity, Capital, Collateral, Conditions) with a composite score out of 100
+- **Dynamic CAM Generation** — Full Credit Appraisal Memorandum with 8 structured sections
+- **PDF Export** — Professional, print-ready PDF with cover page, financial tables, risk flags, and covenants
+- **Document Vault** — Upload and manage multiple datasets; switch between them without page reload
+- **Risk Flag Analysis** — Contextual, banker-quality risk explanations with severity levels and covenant recommendations
+- **AI Insight Summary** — Narrative credit assessment with Financial Strength, Risk Indicators, and Overall Credit Risk
+- **Primary Insights** — Add field observations (site visits, management interviews) that adjust the credit score
+- **Research Agent** — Sector and promoter intelligence feed
+
+---
+
+## CAM Report Structure
+
+1. Executive Summary
+2. Borrower Profile
+3. Five Cs Assessment
+4. Financial Summary & Key Ratios
+5. Risk Flags & Mitigants
+6. Primary Insights & Field Observations
+7. AI Insight Summary
+8. Recommendation & Covenants
+
+---
+
+## Supported Dataset Formats
+
+| Format | Extension |
+|--------|-----------|
+| CSV | `.csv` |
+| Excel | `.xlsx`, `.xls` |
+| JSON | `.json` |
+
+Datasets should contain financial columns such as revenue, EBITDA, PAT, debt, equity, DSCR, CIBIL score, litigation exposure, etc. The engine auto-maps column names using keyword matching.
+
+---
+
+## Usage
+
+1. **Open** `index.html` in a browser
+2. **Go to Data Ingestor** — drag and drop your financial dataset
+3. **Review** the auto-mapped fields and adjust if needed
+4. **Go to CAM Generator** — fill in loan details, then click **Generate Preview**
+5. **Download PDF** for the complete Credit Appraisal Memorandum
+
+---
+
+## Deployment on GitHub Pages
+
+1. Fork or clone this repository
+2. Go to **Settings → Pages**
+3. Set source to `main` branch, root folder
+4. Your app will be live at `https://<your-username>.github.io/<repo-name>/`
+
+---
+
+## Tech Stack
+
+| Library | Purpose |
+|---------|---------|
+| [jsPDF](https://github.com/parallax/jsPDF) | PDF generation |
+| [jsPDF-AutoTable](https://github.com/simonbengtsson/jsPDF-AutoTable) | Table rendering in PDF |
+| [PapaParse](https://www.papaparse.com/) | CSV parsing |
+| [SheetJS (XLSX)](https://sheetjs.com/) | Excel parsing |
+
+All libraries are loaded from CDN. The entire application is a **single HTML file** with no build step.
+
+---
+
+## Screenshots
+
+> Upload a dataset → instant AI credit score → professional CAM PDF
+
+---
+
+## Disclaimer
+
+Intelli-Credit is a decision-support tool. All credit decisions must be reviewed and approved by authorised credit officers in accordance with applicable banking regulations. The AI-generated output does not constitute a sanctioned credit decision.
+
+---
+
+## License
+
+MIT License — free to use, modify, and distribute.
