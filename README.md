@@ -75,9 +75,4 @@ All libraries are loaded from CDN. The entire application is a **single HTML fil
 
 ---
 
-## Disclaimer
-
-Intelli-Credit is a decision-support tool. All credit decisions must be reviewed and approved by authorised credit officers in accordance with applicable banking regulations. The AI-generated output does not constitute a sanctioned credit decision.
-
----
 
