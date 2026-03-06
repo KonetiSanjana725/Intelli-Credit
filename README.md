@@ -68,7 +68,19 @@ All libraries are loaded from CDN. The entire application is a **single HTML fil
 ---
 
 ## Screenshots
+<img width="1903" height="906" alt="CAM dashboard - Copy" src="https://github.com/user-attachments/assets/3165c15a-e556-4a5a-af20-953e28ce0aae" />
 
+<img width="1898" height="912" alt="Data Ingestor" src="https://github.com/user-attachments/assets/b58e8141-4529-407d-a412-925e6d896caa" />
+
+<img width="1905" height="905" alt="Research Agent" src="https://github.com/user-attachments/assets/a1357836-5c27-4cfa-80b4-edab0673d1e9" />
+
+<img width="1911" height="917" alt="Primary Insights" src="https://github.com/user-attachments/assets/e7ec3f14-17c5-4cd8-89ba-222e7c64d1d7" />
+
+<img width="1909" height="914" alt="Document Vault" src="https://github.com/user-attachments/assets/e10587e1-cfea-404b-871f-01591e16349f" />
+
+<img width="1913" height="904" alt="Cam generator" src="https://github.com/user-attachments/assets/7c9b5263-03c6-416e-8a6f-f2e5222da7fe" />
+
+<img width="1909" height="909" alt="Case History" src="https://github.com/user-attachments/assets/ce0ac553-d77f-4075-b02e-901830878533" />
 
 
 > Upload a dataset → instant AI credit score → professional CAM PDF
