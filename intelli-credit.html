@@ -1,0 +1,2495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Intelli-Credit — AI Credit Appraisal Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0d0d12;--paper:#f4f1ea;--cream:#eae6db;--white:#ffffff;
+  --gold:#c9a84c;--gold2:#e8cc7a;--teal:#1a5c5a;--teal2:#2a9490;
+  --rust:#b84c2a;--muted:#6b6560;--line:#e0dbd0;
+  --sidebar-w:250px;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);min-height:100vh;overflow-x:hidden}
+
+/* ===== SIDEBAR ===== */
+#sidebar{
+  position:fixed;top:0;left:0;bottom:0;width:var(--sidebar-w);
+  background:var(--ink);display:flex;flex-direction:column;z-index:100;
+  border-right:1px solid rgba(201,168,76,0.15)
+}
+.sb-logo{padding:24px 20px 18px;border-bottom:1px solid rgba(201,168,76,0.12)}
+.sb-logo-main{font-family:'Playfair Display',serif;font-size:18px;font-weight:900;color:var(--gold)}
+.sb-logo-sub{font-family:'DM Mono',monospace;font-size:7px;color:rgba(201,168,76,0.4);letter-spacing:3px;text-transform:uppercase;margin-top:3px}
+.sb-nav{flex:1;padding:12px 0;overflow-y:auto}
+.sb-sec{font-family:'DM Mono',monospace;font-size:7px;color:rgba(255,255,255,0.2);letter-spacing:3px;text-transform:uppercase;padding:14px 20px 5px}
+.sb-item{
+  display:flex;align-items:center;gap:10px;padding:10px 20px;
+  cursor:pointer;font-size:13px;color:rgba(255,255,255,0.45);
+  transition:all 0.15s;position:relative;user-select:none;border:none;background:none;width:100%;text-align:left
+}
+.sb-item:hover{color:#fff;background:rgba(255,255,255,0.05)}
+.sb-item.active{color:var(--gold);background:rgba(201,168,76,0.08)}
+.sb-item.active::before{
+  content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:3px;height:16px;background:var(--gold);border-radius:0 2px 2px 0
+}
+.sb-case{padding:14px 20px;border-top:1px solid rgba(201,168,76,0.1)}
+.sb-case-lbl{font-family:'DM Mono',monospace;font-size:7px;color:rgba(201,168,76,0.4);letter-spacing:2px;text-transform:uppercase;margin-bottom:5px}
+.sb-case-name{font-size:12px;color:#fff;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-case-meta{font-size:10px;color:rgba(255,255,255,0.28);font-family:'DM Mono',monospace}
+
+/* ===== MAIN ===== */
+#main{margin-left:var(--sidebar-w);min-height:100vh;display:flex;flex-direction:column}
+#topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 28px;border-bottom:1px solid var(--line);
+  background:rgba(244,241,234,0.95);backdrop-filter:blur(12px);
+  position:sticky;top:0;z-index:50
+}
+#topbar-title{font-family:'Playfair Display',serif;font-size:17px;font-weight:700}
+#topbar-crumb{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted);margin-top:2px;letter-spacing:.5px}
+.tb-actions{display:flex;gap:7px}
+
+/* ===== PAGES ===== */
+.page{display:none;padding:24px 28px;flex:1;animation:fadeIn 0.25s ease}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* ===== BUTTONS ===== */
+.btn{
+  font-family:'DM Mono',monospace;font-size:8.5px;letter-spacing:1.5px;
+  padding:7px 14px;border-radius:3px;cursor:pointer;text-transform:uppercase;
+  border:none;transition:all 0.15s;white-space:nowrap;display:inline-flex;align-items:center;gap:5px
+}
+.btn:disabled{opacity:0.5;cursor:not-allowed}
+.btn-outline{background:transparent;border:1px solid rgba(13,13,18,0.2);color:var(--ink)}
+.btn-outline:hover:not(:disabled){background:var(--cream)}
+.btn-teal{background:var(--teal);color:#fff}
+.btn-teal:hover:not(:disabled){background:var(--teal2)}
+.btn-gold{background:var(--gold);color:var(--ink);font-weight:600}
+.btn-gold:hover:not(:disabled){background:var(--gold2)}
+.btn-rust{background:var(--rust);color:#fff}
+.btn-sm{padding:4px 10px;font-size:7.5px}
+.btn-lg{padding:11px 22px;font-size:9.5px}
+
+/* ===== CARDS ===== */
+.card{background:var(--white);border:1px solid var(--line);border-radius:5px;box-shadow:0 1px 8px rgba(0,0,0,0.05);overflow:hidden;margin-bottom:18px}
+.card-hdr{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-bottom:1px solid var(--line)}
+.card-ttl{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:2.5px;text-transform:uppercase;color:var(--muted)}
+.card-body{padding:18px}
+
+/* ===== GRID ===== */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+
+/* ===== STAT BOXES ===== */
+.stat{background:var(--white);border:1px solid var(--line);border-radius:5px;padding:16px 18px}
+.stat-v{font-family:'Playfair Display',serif;font-size:24px;font-weight:700;line-height:1}
+.stat-k{font-family:'DM Mono',monospace;font-size:7.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.stat-d{font-size:11px;font-weight:500;margin-top:3px}
+.up{color:var(--teal2)}.dn{color:var(--rust)}.neu{color:var(--gold)}
+
+/* ===== BADGES ===== */
+.badge{display:inline-block;font-family:'DM Mono',monospace;font-size:7.5px;letter-spacing:1px;text-transform:uppercase;padding:3px 8px;border-radius:2px}
+.b-g{background:#dff2f0;color:var(--teal)}.b-r{background:#fde8e4;color:var(--rust)}
+.b-a{background:#fef4dd;color:#7a5f10}.b-k{background:var(--cream);color:var(--muted)}
+.b-b{background:#e4eeff;color:#2255b8}
+
+/* ===== FORMS ===== */
+.form-label{font-family:'DM Mono',monospace;font-size:7.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:4px;margin-top:12px}
+.form-ctrl{font-family:'DM Sans',sans-serif;font-size:13px;color:var(--ink);background:var(--cream);border:1px solid var(--line);border-radius:3px;padding:8px 12px;width:100%;outline:none;transition:border 0.15s}
+.form-ctrl:focus{border-color:var(--teal);background:#fff}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* ===== PROGRESS BARS ===== */
+.pbar{height:4px;background:var(--cream);border-radius:99px;overflow:hidden;margin-top:6px}
+.pfill{height:100%;border-radius:99px;transition:width 1s ease}
+.pf-teal{background:var(--teal2)}.pf-gold{background:var(--gold)}.pf-rust{background:var(--rust)}
+
+/* ===== TABLE ===== */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead th{font-family:'DM Mono',monospace;font-size:7.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);padding:9px 12px;text-align:left;border-bottom:1px solid var(--line);background:var(--cream);white-space:nowrap}
+tbody td{padding:9px 12px;border-bottom:1px solid rgba(0,0,0,0.04);vertical-align:middle}
+tbody tr:last-child td{border:none}
+tbody tr:hover td{background:rgba(26,92,90,0.03)}
+
+/* ===== ALERTS ===== */
+.alert{display:flex;gap:10px;padding:11px 13px;border-radius:3px;border-left:3px solid;font-size:12px;line-height:1.6;margin-bottom:8px}
+.al-r{background:#fef5f2;border-color:var(--rust);color:#7a2010}
+.al-a{background:#fefaee;border-color:var(--gold);color:#6b5010}
+.al-g{background:#edf9f8;border-color:var(--teal2);color:#154040}
+.al-b{background:#eef3ff;border-color:#4477dd;color:#1a3388}
+.al-icon{font-size:13px;flex-shrink:0;margin-top:1px}
+
+/* ===== PIPE ROWS ===== */
+.pipe{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:3px;margin-bottom:6px;font-size:12.5px;background:#fff;transition:border 0.15s}
+.pipe:hover{border-color:var(--teal2)}
+.pipe-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.pd-done{background:var(--teal2)}.pd-proc{background:var(--gold);animation:blink 1.4s ease infinite}
+.pd-pend{border:1.5px solid var(--muted);background:transparent}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.pipe-name{flex:1;font-weight:500}
+.pipe-sz{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)}
+
+/* ===== TIMELINE ===== */
+.timeline{position:relative;padding-left:22px}
+.timeline::before{content:'';position:absolute;left:5px;top:6px;bottom:6px;width:1px;background:var(--line)}
+.tl-item{position:relative;margin-bottom:16px}
+.tl-dot{position:absolute;left:-18px;top:3px;width:8px;height:8px;border-radius:50%;background:var(--teal2);border:2px solid #fff;box-shadow:0 0 0 2px var(--teal2)}
+.tl-dot.g{background:var(--gold);box-shadow:0 0 0 2px var(--gold)}
+.tl-dot.r{background:var(--rust);box-shadow:0 0 0 2px var(--rust)}
+.tl-date{font-family:'DM Mono',monospace;font-size:8.5px;color:var(--muted);margin-bottom:2px}
+.tl-title{font-size:12.5px;font-weight:600;margin-bottom:2px}
+.tl-body{font-size:11.5px;color:var(--muted);line-height:1.5}
+
+/* ===== SCORE CIRCLE ===== */
+.score-ring-wrap{position:relative;width:110px;height:110px;flex-shrink:0}
+.score-ring-wrap svg{transform:rotate(-90deg)}
+.score-ring-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.score-num{font-family:'Playfair Display',serif;font-size:30px;font-weight:700;line-height:1}
+.score-denom{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted)}
+
+/* ===== FIVE Cs ===== */
+.cs-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cs-card{background:var(--cream);border-radius:4px;padding:13px;position:relative;overflow:hidden}
+.cs-card::after{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.cs-st::after{background:var(--teal2)}.cs-mo::after{background:var(--gold)}.cs-wk::after{background:var(--rust)}
+.cs-full{grid-column:span 2}
+.cs-name{font-family:'DM Mono',monospace;font-size:7.5px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.cs-val{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;line-height:1}
+.cs-note{font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.4}
+
+/* ===== REC BOX ===== */
+.rec-box{background:var(--ink);border-radius:5px;padding:20px;color:#fff;margin-bottom:18px}
+.rec-lbl{font-family:'DM Mono',monospace;font-size:7.5px;letter-spacing:3px;text-transform:uppercase;color:rgba(201,168,76,0.5);margin-bottom:7px}
+.rec-dec{font-family:'Playfair Display',serif;font-size:21px;font-weight:900;color:var(--gold2);line-height:1.15;margin-bottom:4px}
+.rec-amt{font-family:'DM Mono',monospace;font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:12px}
+.rec-body{font-size:11.5px;color:rgba(255,255,255,0.45);line-height:1.8;padding-top:12px;border-top:1px solid rgba(201,168,76,0.12)}
+.rec-body strong{color:rgba(201,168,76,0.75);font-weight:500}
+
+/* ===== UPLOAD ZONE ===== */
+.dz{border:2px dashed rgba(13,13,18,0.15);border-radius:5px;padding:28px 20px;text-align:center;cursor:pointer;transition:all 0.2s;background:#fff}
+.dz:hover,.dz.over{border-color:var(--teal);background:#edf9f8}
+.dz.loaded{border-color:var(--teal2);border-style:solid;background:#edf9f8}
+.dz-icon{font-size:28px;display:block;margin-bottom:8px}
+.dz-text{font-size:13px;color:var(--muted);margin-bottom:4px}
+.dz-hint{font-family:'DM Mono',monospace;font-size:8.5px;color:var(--muted);letter-spacing:.5px}
+
+/* ===== DATASET MODAL ===== */
+#ds-modal{display:none;position:fixed;inset:0;background:rgba(13,13,18,0.65);z-index:1000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(3px)}
+#ds-modal.open{display:flex}
+.modal-box{background:#fff;border-radius:6px;width:100%;max-width:1000px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--ink);flex-shrink:0}
+.modal-title{font-family:'Playfair Display',serif;font-size:15px;font-weight:700;color:#fff}
+.modal-meta{font-family:'DM Mono',monospace;font-size:8px;color:rgba(255,255,255,0.35);margin-top:2px}
+.modal-close{background:none;border:none;color:rgba(255,255,255,0.4);font-size:20px;cursor:pointer;line-height:1;padding:2px 6px}
+.modal-close:hover{color:#fff}
+.modal-toolbar{display:flex;align-items:center;gap:8px;padding:10px 20px;border-bottom:1px solid var(--line);background:var(--cream);flex-shrink:0;flex-wrap:wrap}
+.modal-body{flex:1;overflow:auto}
+.modal-foot{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-top:1px solid var(--line);background:var(--cream);flex-shrink:0}
+.modal-foot-info{font-family:'DM Mono',monospace;font-size:8px;color:var(--muted)}
+.modal-pages{display:flex;gap:5px;align-items:center}
+.modal-body table thead th{position:sticky;top:0;z-index:2;cursor:pointer;background:var(--ink);color:rgba(255,255,255,0.65);font-size:7.5px}
+.modal-body table thead th:hover{background:#1a1a24}
+.modal-body tbody td{font-family:'DM Mono',monospace;font-size:11px}
+.td-num{color:var(--teal);font-weight:600}
+.td-hi{color:var(--teal2)}.td-lo{color:var(--rust)}
+.row-no{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);padding-right:8px;border-right:1px solid var(--line);user-select:none;white-space:nowrap}
+
+/* ===== HISTORY ITEM ===== */
+.hist-item{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:5px;background:#fff;margin-bottom:8px;cursor:pointer;transition:all 0.15s}
+.hist-item:hover{border-color:var(--teal);box-shadow:0 2px 10px rgba(0,0,0,0.07)}
+.hist-score{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;width:42px;text-align:center;flex-shrink:0}
+.hist-info{flex:1}
+.hist-name{font-size:13px;font-weight:600;margin-bottom:2px}
+.hist-meta{font-family:'DM Mono',monospace;font-size:9px;color:var(--muted)}
+
+/* ===== CAM PREVIEW ===== */
+.cam-doc{background:#fff;border:1px solid var(--line);border-radius:5px;padding:28px 32px;font-size:12.5px;line-height:1.85;max-height:calc(100vh - 180px);overflow-y:auto}
+.cam-doc h1{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;text-align:center;margin-bottom:3px}
+.cam-doc .cam-sub{text-align:center;font-family:'DM Mono',monospace;font-size:8.5px;color:var(--muted);letter-spacing:.8px;margin-bottom:20px;padding-bottom:14px;border-bottom:2px solid var(--ink)}
+.cam-doc h2{font-family:'Playfair Display',serif;font-size:13px;font-weight:700;margin:18px 0 7px;border-bottom:1px solid var(--line);padding-bottom:4px}
+.cam-doc p{margin-bottom:8px;color:#2a2a30}
+.cam-doc table{margin:8px 0 14px}
+.cam-doc td,.cam-doc th{font-size:12px}
+
+/* ===== EMPTY STATE ===== */
+.empty{text-align:center;padding:48px 20px}
+.empty-icon{font-size:40px;opacity:.25;display:block;margin-bottom:12px}
+.empty-title{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;margin-bottom:6px}
+.empty-sub{font-size:12.5px;color:var(--muted);line-height:1.7;max-width:320px;margin:0 auto 20px}
+
+/* ===== TOAST ===== */
+#toast{position:fixed;bottom:20px;right:20px;background:var(--ink);color:#fff;padding:11px 16px;border-radius:4px;font-size:12px;z-index:9999;border-left:3px solid var(--gold);max-width:300px;line-height:1.5;display:none;box-shadow:0 4px 20px rgba(0,0,0,0.3)}
+
+/* ===== SECTION HEADER ===== */
+.sec-h{font-family:'Playfair Display',serif;font-size:15px;font-weight:700;margin-bottom:14px}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--cream)}
+::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.18);border-radius:99px}
+</style>
+</style>
+<!-- MODAL -->
+<div id="ds-modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div><div class="modal-title" id="modal-title">Dataset Viewer</div><div class="modal-meta" id="modal-meta"></div></div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-toolbar">
+      <input id="modal-search" class="form-ctrl" placeholder="Search all rows…" style="max-width:240px;padding:6px 10px;" oninput="filterModal()">
+      <select id="modal-col" class="form-ctrl" style="width:170px;padding:6px 10px;" onchange="filterModal()"><option value="">All columns</option></select>
+      <div style="flex:1"></div>
+      <button class="btn btn-outline btn-sm" onclick="exportCSV()">Export CSV</button>
+      <button class="btn btn-teal btn-sm" onclick="goGenerateCAM()">Use for CAM ↗</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-foot">
+      <div class="modal-foot-info" id="modal-foot-info"></div>
+      <div class="modal-pages" id="modal-pager"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-main">Intelli-Credit</div>
+    <div class="sb-logo-sub">AI Appraisal Engine · v3.0</div>
+  </div>
+  <nav class="sb-nav" id="sb-nav">
+    <div class="sb-sec">Workspace</div>
+    <button class="sb-item active" data-page="dashboard">◈&nbsp;&nbsp;CAM Dashboard</button>
+    <button class="sb-item" data-page="ingestor">⊙&nbsp;&nbsp;Data Ingestor</button>
+    <button class="sb-item" data-page="research">⊕&nbsp;&nbsp;Research Agent</button>
+    <button class="sb-item" data-page="insights">◎&nbsp;&nbsp;Primary Insights</button>
+    <button class="sb-item" data-page="vault">⊞&nbsp;&nbsp;Document Vault</button>
+    <div class="sb-sec" style="margin-top:6px">Reports</div>
+    <button class="sb-item" data-page="camgen">▤&nbsp;&nbsp;CAM Generator</button>
+    <button class="sb-item" data-page="history">◷&nbsp;&nbsp;Case History</button>
+  </nav>
+  <div class="sb-case">
+    <div class="sb-case-lbl">Active Case</div>
+    <div class="sb-case-name" id="sb-name">No dataset loaded</div>
+    <div class="sb-case-meta" id="sb-meta">Drop a file to begin</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <div id="topbar">
+    <div>
+      <div id="topbar-title">CAM Dashboard</div>
+      <div id="topbar-crumb">Drop a dataset on Data Ingestor to generate a Credit Appraisal</div>
+    </div>
+    <div class="tb-actions">
+      <button class="btn btn-outline" onclick="goPage('vault')">Document Vault</button>
+      <button class="btn btn-gold" onclick="goPage('camgen')">Generate CAM ↗</button>
+    </div>
+  </div>
+
+  <!-- ======== PAGE: DASHBOARD ======== -->
+  <div class="page active" id="page-dashboard">
+    <div id="dash-empty" class="empty">
+      <span class="empty-icon">◈</span>
+      <div class="empty-title">No Dataset Loaded</div>
+      <div class="empty-sub">Drop a CSV, Excel or JSON file on the Data Ingestor to automatically score a company and generate a Credit Appraisal Memo.</div>
+      <button class="btn btn-teal btn-lg" onclick="goPage('ingestor')">Go to Data Ingestor →</button>
+    </div>
+    <div id="dash-main" style="display:none">
+      <div id="dash-kpis" class="g4" style="margin-bottom:18px"></div>
+      <div style="display:grid;grid-template-columns:1fr 310px;gap:18px;align-items:start">
+        <div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">Composite Credit Score</span><span class="badge b-b" id="dash-score-badge">AI-Scored</span></div>
+            <div class="card-body" id="dash-score-body"></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">Risk Intelligence Flags</span><span id="dash-flag-count" class="badge b-r">0 issues</span></div>
+            <div class="card-body" id="dash-flags"></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">Extracted Financial Metrics</span><span class="badge b-k" id="dash-fin-src">Dataset</span></div>
+            <div id="dash-fin" style="overflow-x:auto"></div>
+          </div>
+        </div>
+        <div>
+          <div id="dash-rec"></div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">Score Breakdown</span></div>
+            <div class="card-body" id="dash-breakdown"></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">Column Profile</span><span class="badge b-k" id="dash-col-count"></span></div>
+            <div class="card-body" style="padding:12px" id="dash-cols"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== PAGE: DATA INGESTOR ======== -->
+  <div class="page" id="page-ingestor">
+    <div class="g2" style="align-items:start">
+      <div>
+        <div class="sec-h">Drop Your Dataset</div>
+        <!-- Upload new dataset banner (shown only when a dataset is already loaded) -->
+        <!-- Active-dataset status bar — shown when any dataset is loaded -->
+        <div id="new-dataset-bar" style="display:none;background:rgba(26,92,90,.07);border:1px solid rgba(26,92,90,.18);border-radius:4px;padding:10px 14px;margin-bottom:10px;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--teal);white-space:nowrap">Active Dataset:</span>
+          <span style="font-size:12.5px;font-weight:600;flex:1;min-width:120px" id="active-ds-label">—</span>
+          <button class="btn btn-teal btn-sm" onclick="document.getElementById('new-file-input').click()" style="white-space:nowrap">+ Upload New Dataset</button>
+          <button class="btn btn-outline btn-sm" onclick="goPage('vault')" style="white-space:nowrap">Switch from Vault ↗</button>
+        </div>
+        <!-- Hidden input specifically for uploading a second/replacement dataset -->
+        <input type="file" id="new-file-input" style="display:none" accept=".csv,.xlsx,.xls,.json" onchange="handleFileInput(this); this.value='';">
+        <div class="dz" id="dropzone" onclick="document.getElementById('file-input').click()">
+          <span class="dz-icon" id="dz-icon">⬆</span>
+          <div class="dz-text" id="dz-text">Drop CSV, Excel (.xlsx) or JSON here</div>
+          <div class="dz-hint" id="dz-hint">Any financial dataset · Auto-analyses all columns · Drop another file any time to switch</div>
+          <input type="file" id="file-input" style="display:none" accept=".csv,.xlsx,.xls,.json" onchange="handleFileInput(this); this.value='';">
+        </div>
+
+        <div id="mapper-section" style="display:none;margin-top:16px">
+          <div class="card">
+            <div class="card-hdr">
+              <span class="card-ttl">Field Mapper — Map Columns to CAM Fields</span>
+              <button class="btn btn-teal btn-sm" onclick="applyFieldMap()">Apply ↗</button>
+            </div>
+            <div class="card-body">
+              <p style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6">Auto-detected column mappings below. Adjust if needed, then click Apply to recompute the score.</p>
+              <div id="mapper-grid" class="g3"></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="analysis-section" style="display:none;margin-top:16px">
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">AI Analysis Result</span><span class="badge b-g" id="analysis-badge">Ready</span></div>
+            <div class="card-body" id="analysis-body"></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div id="preview-section" style="display:none">
+          <div class="card">
+            <div class="card-hdr">
+              <span class="card-ttl" id="preview-title">Preview</span>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-outline btn-sm" onclick="openModal()">View Full ↗</button>
+                <button class="btn btn-teal btn-sm" onclick="goPage('camgen')">CAM →</button>
+              </div>
+            </div>
+            <div id="preview-body" style="overflow-x:auto;max-height:260px"></div>
+          </div>
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">Column Summary</span><span class="badge b-k" id="col-count-badge"></span></div>
+            <div class="card-body" style="padding:12px" id="col-summary"></div>
+          </div>
+        </div>
+        <div id="preview-empty" class="empty">
+          <span class="empty-icon" style="font-size:28px">⊙</span>
+          <div class="empty-title" style="font-size:15px">No file yet</div>
+          <div class="empty-sub" style="font-size:12px">Drop a file on the left. Supports CSV, Excel, JSON.</div>
+        </div>
+        <div id="loaded-section" style="display:none;margin-top:16px">
+          <div class="card">
+            <div class="card-hdr"><span class="card-ttl">Loaded Datasets</span><span class="badge b-g" id="loaded-badge">0</span></div>
+            <div class="card-body" style="padding:12px" id="loaded-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== PAGE: RESEARCH AGENT ======== -->
+  <div class="page" id="page-research">
+    <div style="display:grid;grid-template-columns:1fr 280px;gap:18px;align-items:start">
+      <div>
+        <div class="sec-h">Digital Credit Manager</div>
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <input id="research-q" class="form-ctrl" placeholder="Search company news, promoter, sector, regulations…" style="flex:1">
+          <button id="research-btn" class="btn btn-teal" onclick="runResearch()">Run Research ↗</button>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">Research Feed</span><span class="badge b-g" id="research-count">8 results</span></div>
+          <div id="research-results">
+            <table><thead><tr><th>Source</th><th>Headline</th><th>Date</th><th>Signal</th></tr></thead>
+            <tbody id="research-tbody">
+              <tr><td style="font-family:'DM Mono',monospace;font-size:9px">Economic Times</td><td>Steel sector faces 12% margin compression amid rising coking coal imports</td><td style="font-family:'DM Mono',monospace;font-size:9px;white-space:nowrap">28 Feb 2026</td><td><span class="badge b-r">Risk</span></td></tr>
+              <tr><td style="font-family:'DM Mono',monospace;font-size:9px">Business Standard</td><td>Infrastructure surge: Govt orders Rs.2.8L Cr structural steel for FY27</td><td style="font-family:'DM Mono',monospace;font-size:9px;white-space:nowrap">1 Mar 2026</td><td><span class="badge b-g">Positive</span></td></tr>
+              <tr><td style="font-family:'DM Mono',monospace;font-size:9px">SEBI</td><td>Enhanced disclosure norms for steel borrowers above Rs.25 Cr</td><td style="font-family:'DM Mono',monospace;font-size:9px;white-space:nowrap">25 Feb 2026</td><td><span class="badge b-a">Monitor</span></td></tr>
+              <tr><td style="font-family:'DM Mono',monospace;font-size:9px">e-Courts</td><td>Litigation: supplier dispute hearing scheduled for Apr 2026</td><td style="font-family:'DM Mono',monospace;font-size:9px;white-space:nowrap">2 Mar 2026</td><td><span class="badge b-r">Risk</span></td></tr>
+              <tr><td style="font-family:'DM Mono',monospace;font-size:9px">MCA21</td><td>Promoter — No disqualification. 3 active directorships confirmed.</td><td style="font-family:'DM Mono',monospace;font-size:9px;white-space:nowrap">4 Mar 2026</td><td><span class="badge b-g">Clear</span></td></tr>
+              <tr><td style="font-family:'DM Mono',monospace;font-size:9px">BIS Gazette</td><td>New quality norms for HR Steel Coils — effective Jun 2026</td><td style="font-family:'DM Mono',monospace;font-size:9px;white-space:nowrap">20 Feb 2026</td><td><span class="badge b-a">Monitor</span></td></tr>
+              <tr><td style="font-family:'DM Mono',monospace;font-size:9px">CIBIL</td><td>Promoter CIBIL: 772 — No defaults in 7 years</td><td style="font-family:'DM Mono',monospace;font-size:9px;white-space:nowrap">3 Mar 2026</td><td><span class="badge b-g">Clear</span></td></tr>
+              <tr><td style="font-family:'DM Mono',monospace;font-size:9px">Livemint</td><td>NBFC credit to steel mid-caps grows 18% YoY — DFI-favoured sector</td><td style="font-family:'DM Mono',monospace;font-size:9px;white-space:nowrap">27 Feb 2026</td><td><span class="badge b-g">Positive</span></td></tr>
+            </tbody></table>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">Promoter Profile</span></div>
+          <div class="card-body">
+            <div style="font-size:13px;font-weight:600;margin-bottom:2px" id="promo-name">Load dataset to populate</div>
+            <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-bottom:12px" id="promo-meta">—</div>
+            <div class="alert al-g"><span class="al-icon">✓</span><div>No adverse media. Clean credit history. Prior facilities closed without default.</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">Sector Scorecard</span></div>
+          <div class="card-body">
+            <div style="display:flex;flex-direction:column;gap:10px;font-size:12px">
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span>Demand Outlook</span><strong class="up">Positive</strong></div><div class="pbar"><div class="pfill pf-teal" style="width:72%"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span>Raw Material Risk</span><strong class="dn">High</strong></div><div class="pbar"><div class="pfill pf-rust" style="width:68%"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span>Regulatory Pressure</span><strong class="neu">Moderate</strong></div><div class="pbar"><div class="pfill pf-gold" style="width:50%"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span>Credit Availability</span><strong class="up">Good</strong></div><div class="pbar"><div class="pfill pf-teal" style="width:65%"></div></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== PAGE: PRIMARY INSIGHTS ======== -->
+  <div class="page" id="page-insights">
+    <div class="g2" style="align-items:start">
+      <div>
+        <div class="sec-h">Add Field Observation</div>
+        <div class="card">
+          <div class="card-body">
+            <label class="form-label">Observation Type</label>
+            <select id="ins-type" class="form-ctrl"><option>Factory Site Visit</option><option>Management Interview</option><option>Customer Reference</option><option>Supplier Check</option><option>Banker Reference</option><option>Other</option></select>
+            <div class="form-row">
+              <div><label class="form-label">Date</label><input type="date" id="ins-date" class="form-ctrl" value="2026-03-05"></div>
+              <div><label class="form-label">Officer Name</label><input type="text" id="ins-officer" class="form-ctrl" placeholder="Your name"></div>
+            </div>
+            <label class="form-label">Observation Details</label>
+            <textarea id="ins-text" class="form-ctrl" style="min-height:90px;resize:vertical" placeholder="Describe what you observed — factory conditions, management quality, operational details…"></textarea>
+            <label class="form-label">Impact on Score</label>
+            <select id="ins-impact" class="form-ctrl"><option value="positive">Positive — improves score (+2 pts)</option><option value="neutral">Neutral — informational only</option><option value="negative">Negative — increases risk (−2 pts)</option></select>
+            <div style="display:flex;gap:8px;margin-top:14px">
+              <button class="btn btn-teal" style="flex:1;padding:10px" id="ins-btn" onclick="submitInsight()">Submit & Recalculate Score</button>
+              <button class="btn btn-outline" style="padding:10px 12px" onclick="document.getElementById('ins-text').value='';document.getElementById('ins-officer').value=''">Clear</button>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">Score Impact</span></div>
+          <div class="card-body">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+              <span style="font-size:12.5px;color:var(--muted)">Base AI Score</span>
+              <span style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700" id="ins-base-score">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+              <span style="font-size:12.5px;color:var(--muted)">Insight Adjustments</span>
+              <span class="up" style="font-size:14px;font-weight:600" id="ins-adj">+0</span>
+            </div>
+            <hr style="border:none;border-top:1px solid var(--line);margin:10px 0">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:13px;font-weight:600">Final Score</span>
+              <span id="ins-final-score" style="font-family:'Playfair Display',serif;font-size:26px;font-weight:700;color:var(--teal)">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="sec-h">Insights Log</div>
+        <div class="card">
+          <div class="card-body">
+            <div class="timeline" id="ins-log">
+              <div class="empty" style="padding:16px 0">
+                <span class="empty-icon" style="font-size:24px">◎</span>
+                <p style="font-size:12px;color:var(--muted)">No field observations yet.<br>Submit one using the form.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== PAGE: DOCUMENT VAULT ======== -->
+  <div class="page" id="page-vault">
+    <div class="sec-h">Document Vault</div>
+
+    <!-- Active-dataset banner inside Vault -->
+    <div id="vault-active-bar" style="display:none;background:rgba(26,92,90,.07);border:1px solid rgba(26,92,90,.18);border-radius:4px;padding:10px 14px;margin-bottom:12px;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-family:'DM Mono',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--teal);white-space:nowrap">Active Dataset:</span>
+      <span style="font-size:12.5px;font-weight:600;flex:1;min-width:120px" id="vault-active-label">—</span>
+      <button class="btn btn-teal btn-sm" onclick="document.getElementById('vault-ds-fi').click()" style="white-space:nowrap">+ Upload New Dataset</button>
+      <button class="btn btn-outline btn-sm" onclick="goPage('camgen');buildPreview();" style="white-space:nowrap">Generate CAM ↗</button>
+    </div>
+    <input type="file" id="vault-ds-fi" style="display:none" accept=".csv,.xlsx,.xls,.json" onchange="handleFileInput(this); this.value='';">
+
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      <input id="vault-search" class="form-ctrl" placeholder="Search documents…" style="max-width:280px" oninput="filterVault()">
+      <select id="vault-cat" class="form-ctrl" style="width:160px" onchange="filterVault()">
+        <option value="">All Categories</option>
+        <option>Dataset</option><option>Structured</option><option>Unstructured</option><option>External</option><option>Insight</option>
+      </select>
+      <button class="btn btn-teal" onclick="document.getElementById('vault-fi').click()">+ Upload File</button>
+      <input type="file" id="vault-fi" style="display:none" multiple onchange="addVaultFiles(this.files)">
+    </div>
+    <div class="card">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Document</th><th>Category</th><th>Rows / Size</th><th>Date</th><th>Status</th><th>Action</th></tr></thead>
+          <tbody id="vault-body">
+            <tr data-cat="Structured" data-name="gst returns"><td><strong>GST_Returns_FY25.pdf</strong></td><td><span class="badge b-b">Structured</span></td><td style="font-family:'DM Mono',monospace;font-size:9px">2.1 MB</td><td style="font-family:'DM Mono',monospace;font-size:9px">1 Mar 2026</td><td><span class="badge b-g">Parsed</span></td><td><button class="btn btn-outline btn-sm" onclick="toast_('Opening document viewer…')">View</button></td></tr>
+            <tr data-cat="Structured" data-name="bank statement"><td><strong>BankStatement_HDFC_24mo.pdf</strong></td><td><span class="badge b-b">Structured</span></td><td style="font-family:'DM Mono',monospace;font-size:9px">4.8 MB</td><td style="font-family:'DM Mono',monospace;font-size:9px">1 Mar 2026</td><td><span class="badge b-g">Analysed</span></td><td><button class="btn btn-outline btn-sm" onclick="toast_('Opening document viewer…')">View</button></td></tr>
+            <tr data-cat="External" data-name="ecourts litigation"><td><strong>eCourts_CS2023_1847.pdf</strong><br><span style="font-size:10px;color:var(--rust)">⚠ Litigation</span></td><td><span class="badge b-k">External</span></td><td style="font-family:'DM Mono',monospace;font-size:9px">0.3 MB</td><td style="font-family:'DM Mono',monospace;font-size:9px">2 Mar 2026</td><td><span class="badge b-r">Flagged</span></td><td><button class="btn btn-outline btn-sm" onclick="toast_('Opening document viewer…')">View</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== PAGE: CAM GENERATOR ======== -->
+  <div class="page" id="page-camgen">
+    <div style="display:grid;grid-template-columns:255px 1fr;gap:18px;align-items:start">
+      <div>
+        <div class="sec-h">Settings</div>
+        <div class="card">
+          <div class="card-body" style="padding-top:6px">
+            <label class="form-label">Company Name</label>
+            <input id="cam-company" class="form-ctrl" placeholder="Auto-filled from dataset">
+            <label class="form-label">CIN</label>
+            <input id="cam-cin" class="form-ctrl" placeholder="Auto-filled from dataset">
+            <label class="form-label">Loan Requested (Rs. Cr)</label>
+            <input id="cam-req" class="form-ctrl" type="number" placeholder="Auto-calculated from dataset">
+            <label class="form-label">Recommended Limit (Rs. Cr)</label>
+            <input id="cam-rec" class="form-ctrl" type="number" placeholder="Auto-calculated">
+            <label class="form-label">Interest Rate (% p.a.)</label>
+            <input id="cam-rate" class="form-ctrl" type="number" value="10.75" step="0.25">
+            <label class="form-label">Tenor (Years)</label>
+            <input id="cam-tenor" class="form-ctrl" type="number" value="5">
+            <label class="form-label">Decision</label>
+            <select id="cam-decision" class="form-ctrl">
+              <option>Approve — Conditional</option>
+              <option>Approve — Unconditional</option>
+              <option>Decline</option>
+              <option>Refer to Credit Committee</option>
+            </select>
+            <div style="margin-top:14px;margin-bottom:8px;font-family:'DM Mono',monospace;font-size:7.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Sections</div>
+            <div style="display:flex;flex-direction:column;gap:7px;font-size:12.5px">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="s-fivecs" checked> Five Cs Analysis</label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="s-fin" checked> Financial Metrics</label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="s-risk" checked> Risk Flags</label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="s-ins" checked> Field Insights</label>
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="s-cov" checked> Covenants</label>
+            </div>
+            <button class="btn btn-teal btn-lg" style="width:100%;margin-top:16px" onclick="buildPreview()">↺ Generate Preview</button>
+            <button class="btn btn-gold btn-lg" style="width:100%;margin-top:7px" id="dl-btn" onclick="downloadPDF()">⬇ Download PDF</button>
+          </div>
+        </div>
+        <div class="card" id="cam-ds-card" style="display:none">
+          <div class="card-hdr"><span class="card-ttl">Dataset</span><button class="btn btn-teal btn-sm" onclick="openModal()">View Data ↗</button></div>
+          <div class="card-body" id="cam-ds-body" style="font-size:12px;color:var(--muted);line-height:1.7"></div>
+        </div>
+      </div>
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:13px">
+          <div class="sec-h" style="margin:0">CAM Preview</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-outline btn-sm" id="view-ds-btn" style="display:none" onclick="openModal()">View Dataset ↗</button>
+            <button class="btn btn-outline" onclick="buildPreview()">↺ Regenerate</button>
+            <button class="btn btn-gold" onclick="downloadPDF()" id="dl-btn2">⬇ Download PDF</button>
+          </div>
+        </div>
+        <div id="cam-out">
+          <div class="cam-doc">
+            <div class="empty" style="padding:32px 20px">
+              <span class="empty-icon">▤</span>
+              <div class="empty-title">No CAM Generated</div>
+              <div class="empty-sub">Drop a dataset on Data Ingestor or fill the settings, then click <strong>Generate Preview</strong>.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== PAGE: CASE HISTORY ======== -->
+  <div class="page" id="page-history">
+    <div style="display:grid;grid-template-columns:1fr 270px;gap:18px;align-items:start">
+      <div>
+        <div class="sec-h">Case History</div>
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <input id="hist-q" class="form-ctrl" placeholder="Search cases…" style="flex:1" oninput="filterHistory()">
+          <select id="hist-f" class="form-ctrl" style="width:150px" onchange="filterHistory()">
+            <option value="">All Decisions</option><option>Approved</option><option>Declined</option><option>Conditional</option><option>Referred</option>
+          </select>
+        </div>
+        <div id="hist-list">
+          <div class="hist-item" data-v="Conditional" onclick="toast_('Loading IC-2026-0312…')"><div class="hist-score" style="color:var(--teal)">74</div><div class="hist-info"><div class="hist-name">Arjun Steelworks Pvt. Ltd.</div><div class="hist-meta">IC-2026-0312 · Steel · Rs.38 Cr · 5 Mar 2026 · R. Sharma</div></div><span class="badge b-g">Conditional</span></div>
+          <div class="hist-item" data-v="Declined" onclick="toast_('Loading IC-2026-0289…')"><div class="hist-score" style="color:var(--rust)">41</div><div class="hist-info"><div class="hist-name">Bharat Textiles Ltd.</div><div class="hist-meta">IC-2026-0289 · Textiles · Rs.22 Cr · 18 Feb 2026 · P. Mehta</div></div><span class="badge b-r">Declined</span></div>
+          <div class="hist-item" data-v="Approved" onclick="toast_('Loading IC-2026-0241…')"><div class="hist-score" style="color:var(--teal)">88</div><div class="hist-info"><div class="hist-name">Gujarat Pharma Industries</div><div class="hist-meta">IC-2026-0241 · Pharma · Rs.55 Cr · 5 Feb 2026 · A. Singh</div></div><span class="badge b-g">Approved</span></div>
+          <div class="hist-item" data-v="Referred" onclick="toast_('Loading IC-2026-0198…')"><div class="hist-score" style="color:var(--gold)">67</div><div class="hist-info"><div class="hist-name">Sunrise Infrastructure</div><div class="hist-meta">IC-2026-0198 · Infra · Rs.80 Cr · 22 Jan 2026 · R. Verma</div></div><span class="badge b-a">Referred</span></div>
+          <div class="hist-item" data-v="Approved" onclick="toast_('Loading IC-2025-1944…')"><div class="hist-score" style="color:var(--teal)">81</div><div class="hist-info"><div class="hist-name">Delhi Logistics Corp</div><div class="hist-meta">IC-2025-1944 · Logistics · Rs.30 Cr · 14 Dec 2025 · P. Sharma</div></div><span class="badge b-g">Approved</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">Portfolio Stats — FY26 YTD</span></div>
+          <div class="card-body">
+            <div style="display:flex;flex-direction:column;gap:11px;font-size:12.5px">
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Cases Processed</span><strong>23</strong></div>
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--muted)">Approved</span><strong class="up">15 (65%)</strong></div><div class="pbar"><div class="pfill pf-teal" style="width:65%"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--muted)">Declined</span><strong class="dn">5 (22%)</strong></div><div class="pbar"><div class="pfill pf-rust" style="width:22%"></div></div></div>
+              <div><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--muted)">Referred</span><strong class="neu">3 (13%)</strong></div><div class="pbar"><div class="pfill pf-gold" style="width:13%"></div></div></div>
+              <hr style="border:none;border-top:1px solid var(--line)">
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Avg Score</span><strong>71.4</strong></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Total Sanctioned</span><strong>Rs.684 Cr</strong></div>
+              <div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">Avg Processing</span><strong class="up">3.2 days</strong></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><span class="card-ttl">Recent Activity</span></div>
+          <div class="card-body">
+            <div class="timeline">
+              <div class="tl-item"><div class="tl-dot"></div><div class="tl-date">5 Mar 2026, 14:32</div><div class="tl-title">CAM Generated — Arjun Steelworks</div><div class="tl-body">Score 74 finalized. Submitted for review.</div></div>
+              <div class="tl-item"><div class="tl-dot g"></div><div class="tl-date">5 Mar 2026, 11:04</div><div class="tl-title">Site Visit Added</div><div class="tl-body">Factory at 65% — score +3 pts.</div></div>
+              <div class="tl-item"><div class="tl-dot r"></div><div class="tl-date">18 Feb 2026, 16:55</div><div class="tl-title">Bharat Textiles — Declined (41)</div><div class="tl-body">3 defaults, high NPA risk.</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end #main -->
+<script>
+// ═══════════════════════════════════════════════════
+// APP STATE
+// ═══════════════════════════════════════════════════
+const App = {
+  dataset: null,
+  headers: [],
+  filename: '',
+  mapping: {},
+  cam: null,
+  baseScore: 0,
+  insAdj: 0,
+  insights: [],
+  loadedFiles: [],
+  // modal state
+  modalData: [],
+  modalPage: 0,
+  modalPageSize: 50,
+  modalSort: { col: -1, asc: true },
+  // vault registry — persists all uploaded datasets across switches (no page reload needed)
+  vaultRegistry: [],   // [ { filename, rows, cols, data, headers, mapping, cam, date } ]
+  activeVaultIdx: -1,  // index into vaultRegistry of dataset currently in use
+};
+
+// ═══════════════════════════════════════════════════
+// NAVIGATION — the only thing that matters first
+// ═══════════════════════════════════════════════════
+const PAGE_META = {
+  dashboard: ['CAM Dashboard',          'AI-powered credit assessment from your dataset'],
+  ingestor:  ['Data Ingestor',           'Drop CSV, Excel or JSON — instant AI analysis'],
+  research:  ['Research Agent',          'Digital Credit Manager · Web & regulatory intelligence'],
+  insights:  ['Primary Insights',        'Field observations & due diligence integration'],
+  vault:     ['Document Vault',          'All case files and uploaded documents'],
+  camgen:    ['CAM Generator',           'Generate and download Credit Appraisal Memo as PDF'],
+  history:   ['Case History',            'Audit trail & portfolio analytics'],
+};
+
+function goPage(id) {
+  // hide all pages
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  // deactivate all nav items
+  document.querySelectorAll('.sb-item').forEach(b => b.classList.remove('active'));
+  // show target page
+  const pg = document.getElementById('page-' + id);
+  if (pg) pg.classList.add('active');
+  // activate nav item
+  const nav = document.querySelector('.sb-item[data-page="' + id + '"]');
+  if (nav) nav.classList.add('active');
+  // update topbar
+  const meta = PAGE_META[id] || [id, ''];
+  document.getElementById('topbar-title').textContent = meta[0];
+  document.getElementById('topbar-crumb').textContent = meta[1];
+}
+
+// wire up all sidebar buttons
+document.querySelectorAll('.sb-item[data-page]').forEach(btn => {
+  btn.addEventListener('click', function() {
+    goPage(this.dataset.page);
+  });
+});
+
+// ═══════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════
+let _toastTimer;
+function toast_(msg, dur) {
+  dur = dur || 3500;
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(function() { t.style.display = 'none'; }, dur);
+}
+
+// ═══════════════════════════════════════════════════
+// FILE INGESTION
+// ═══════════════════════════════════════════════════
+const dz = document.getElementById('dropzone');
+dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', function() { dz.classList.remove('over'); });
+dz.addEventListener('drop', function(e) {
+  e.preventDefault(); dz.classList.remove('over');
+  const f = e.dataTransfer.files[0];
+  if (f) ingestFile(f);
+});
+
+function handleFileInput(inp) {
+  if (inp.files[0]) ingestFile(inp.files[0]);
+}
+
+function setDropzoneState(icon, text, hint, loaded) {
+  document.getElementById('dz-icon').textContent = icon;
+  document.getElementById('dz-text').textContent = text;
+  document.getElementById('dz-hint').textContent = hint;
+  if (loaded) { dz.classList.add('loaded'); } else { dz.classList.remove('loaded'); }
+}
+
+function ingestFile(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  setDropzoneState('⟳', 'Parsing ' + file.name + '…', 'Please wait…', false);
+  toast_('Parsing ' + file.name + '…');
+
+  if (ext === 'csv') {
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: function(r) {
+        processDataset(r.data, r.meta.fields || [], file.name);
+      },
+      error: function() { toast_('Error parsing CSV'); setDropzoneState('⬆','Drop file here','Try again',false); }
+    });
+  } else if (ext === 'xlsx' || ext === 'xls') {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        const hdrs = data.length ? Object.keys(data[0]) : [];
+        processDataset(data, hdrs, file.name);
+      } catch(err) { toast_('Error parsing Excel: ' + err.message); setDropzoneState('⬆','Drop file here','Try again',false); }
+    };
+    reader.readAsArrayBuffer(file);
+  } else if (ext === 'json') {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        let d = JSON.parse(e.target.result);
+        if (!Array.isArray(d)) d = d.data || d.records || d.rows || [d];
+        const hdrs = d.length ? Object.keys(d[0]) : [];
+        processDataset(d, hdrs, file.name);
+      } catch(err) { toast_('Error parsing JSON: ' + err.message); setDropzoneState('⬆','Drop file here','Try again',false); }
+    };
+    reader.readAsText(file);
+  } else {
+    toast_('Unsupported format. Use CSV, Excel or JSON.');
+    setDropzoneState('⬆','Drop CSV, Excel or JSON here','Try again',false);
+  }
+}
+
+function processDataset(data, headers, filename) {
+  if (!data || data.length === 0) { toast_('File is empty or could not be parsed'); return; }
+
+  const mapping = autoMap(headers);
+  const cam     = computeCAM(data, headers, mapping, filename);
+
+  // ── Register in vault registry (deduplicate by filename) ──
+  const existingIdx = App.vaultRegistry.findIndex(function(e) { return e.filename === filename; });
+  const entry = { filename, rows: data.length, cols: headers.length, data, headers, mapping, cam, date: new Date() };
+  if (existingIdx >= 0) {
+    App.vaultRegistry[existingIdx] = entry;   // overwrite same-name dataset
+    App.activeVaultIdx = existingIdx;
+  } else {
+    App.vaultRegistry.unshift(entry);         // newest first
+    App.activeVaultIdx = 0;
+  }
+
+  // ── Activate this dataset as the current working dataset ──
+  activateDataset(App.activeVaultIdx, true /* freshUpload */);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// activateDataset(idx, freshUpload)
+//   Sets the dataset at vaultRegistry[idx] as the active working dataset.
+//   Rebuilds all UI (dashboard, ingestor cards, CAM form) from stored data.
+//   freshUpload=true  → also resets insight adjustments and adds vault row.
+//   freshUpload=false → restores stored cam/mapping; preserves existing insights.
+// ─────────────────────────────────────────────────────────────────────────────
+function activateDataset(idx, freshUpload) {
+  const entry = App.vaultRegistry[idx];
+  if (!entry) return;
+
+  App.activeVaultIdx = idx;
+  App.dataset  = entry.data;
+  App.headers  = entry.headers;
+  App.filename = entry.filename;
+  App.mapping  = entry.mapping;
+  App.cam      = entry.cam;
+  App.baseScore = entry.cam.score;
+  if (freshUpload) App.insAdj = 0;
+
+  const cam  = App.cam;
+  const data = App.dataset;
+
+  // ── Dropzone ──
+  setDropzoneState('✓', entry.filename + ' — loaded', data.length + ' rows · ' + entry.headers.length + ' columns', true);
+
+  // ── Sidebar active-case badge ──
+  document.getElementById('sb-name').textContent = cam.company || entry.filename;
+  document.getElementById('sb-meta').textContent = data.length + ' rows · ' + entry.headers.length + ' cols';
+
+  // ── Ingestor cards ──
+  buildPreviewCard(data, entry.headers);
+  buildFieldMapper(entry.headers, entry.mapping);
+  buildAnalysisCard(cam);
+  document.getElementById('mapper-section').style.display   = 'block';
+  document.getElementById('analysis-section').style.display = 'block';
+  document.getElementById('preview-section').style.display  = 'block';
+  document.getElementById('preview-empty').style.display    = 'none';
+  document.getElementById('loaded-section').style.display   = 'block';
+
+  // ── Dashboard ──
+  buildDashboard(cam);
+  document.getElementById('cam-ds-card').style.display = 'block';
+  document.getElementById('view-ds-btn').style.display = '';
+
+  // ── CAM Generator form pre-fill ──
+  prefillCAMForm(cam);
+
+  // ── Research page ──
+  document.getElementById('promo-name').textContent = cam.promoter || cam.company || entry.filename;
+  document.getElementById('promo-meta').textContent = entry.filename + ' · ' + data.length + ' records';
+
+  // ── Insights score display ──
+  document.getElementById('ins-base-score').textContent  = cam.score;
+  document.getElementById('ins-final-score').textContent = cam.score + (App.insAdj || 0);
+  document.getElementById('ins-adj').textContent         = (App.insAdj >= 0 ? '+' : '') + (App.insAdj || 0);
+
+  // ── CAM Generator dataset info card ──
+  document.getElementById('cam-ds-body').innerHTML =
+    '<strong>' + (cam.company || entry.filename) + '</strong><br>' +
+    data.length + ' rows · ' + entry.headers.length + ' columns<br>' +
+    'Score: <strong style="color:var(--teal)">' + cam.score + '/100</strong> — ' + cam.verdict;
+
+  // ── Rebuild the loaded-files list to mark the active entry ──
+  rebuildLoadedList();
+
+  // ── Show "active dataset" banner in ingestor (makes upload-another obvious) ──
+  var bar = document.getElementById('new-dataset-bar');
+  var lbl = document.getElementById('active-ds-label');
+  if (bar && lbl) {
+    lbl.textContent = entry.filename + ' — ' + data.length + ' rows · score ' + cam.score + '/100';
+    bar.style.display = 'flex';
+  }
+
+  // ── Show "active dataset" banner in vault ──
+  var vbar = document.getElementById('vault-active-bar');
+  var vlbl = document.getElementById('vault-active-label');
+  if (vbar && vlbl) {
+    vlbl.textContent = entry.filename + ' — ' + data.length + ' rows · score ' + cam.score + '/100';
+    vbar.style.display = 'flex';
+  }
+
+  // ── Rebuild vault dataset rows to reflect new active state ──
+  rebuildVaultDatasetRows();
+  // Always call addToVault to ensure the row exists and badge is current
+  addToVault(entry.filename, data.length, cam.score);
+
+  const action = freshUpload ? 'ingested' : 'switched to';
+  toast_('✓ ' + entry.filename + ' ' + action + ' — ' + data.length + ' rows · score: ' + cam.score + '/100');
+  animateBars();
+}
+
+// ═══════════════════════════════════════════════════
+// AUTO FIELD MAPPING
+// ═══════════════════════════════════════════════════
+const FIELD_KW = {
+  company:    ['company','name','entity','borrower','firm','corp','pvt','ltd','inc','organisation'],
+  revenue:    ['revenue','turnover','sales','income','gross'],
+  ebitda:     ['ebitda','operating profit','op profit','operating income'],
+  pat:        ['pat','net profit','profit after tax','net income'],
+  debt:       ['debt','loan','borrowing','outstanding','liability'],
+  equity:     ['equity','net worth','networth','shareholder','capital'],
+  dscr:       ['dscr','debt service','coverage ratio','dcr'],
+  cibil:      ['cibil','credit score','rating','score'],
+  litigation: ['litigation','legal','court','dispute','case','suit'],
+  promoter:   ['promoter','founder','director','cmd','ceo','md','owner'],
+  cin:        ['cin','corporate id','registration no','company id'],
+  industry:   ['industry','sector','segment','category'],
+};
+
+function autoMap(headers) {
+  const mapping = {};
+  const used = new Set();
+  Object.keys(FIELD_KW).forEach(function(field) {
+    headers.forEach(function(h) {
+      if (used.has(h) || mapping[field]) return;
+      const hl = h.toLowerCase();
+      if (FIELD_KW[field].some(function(k) { return hl.indexOf(k) !== -1; })) {
+        mapping[field] = h;
+        used.add(h);
+      }
+    });
+  });
+  return mapping;
+}
+
+// ═══════════════════════════════════════════════════
+// CAM COMPUTATION ENGINE
+// ═══════════════════════════════════════════════════
+function getN(row, col) {
+  if (!col || !row) return null;
+  const v = row[col];
+  if (v === null || v === undefined || v === '') return null;
+  const n = parseFloat(String(v).replace(/[^\d.\-]/g, ''));
+  return isNaN(n) ? null : n;
+}
+function getS(row, col) {
+  if (!col || !row) return '';
+  return String(row[col] || '').trim();
+}
+function avg(arr) {
+  const a = arr.filter(function(x) { return x !== null; });
+  return a.length ? a.reduce(function(s, v) { return s + v; }, 0) / a.length : null;
+}
+
+function computeCAM(data, headers, m, filename) {
+  const revenues   = data.map(function(r) { return getN(r, m.revenue);    }).filter(function(x) { return x !== null; });
+  const ebitdas    = data.map(function(r) { return getN(r, m.ebitda);     }).filter(function(x) { return x !== null; });
+  const pats       = data.map(function(r) { return getN(r, m.pat);        }).filter(function(x) { return x !== null; });
+  const debts      = data.map(function(r) { return getN(r, m.debt);       }).filter(function(x) { return x !== null; });
+  const equities   = data.map(function(r) { return getN(r, m.equity);     }).filter(function(x) { return x !== null; });
+  const dscrs      = data.map(function(r) { return getN(r, m.dscr);       }).filter(function(x) { return x !== null; });
+  const cibils     = data.map(function(r) { return getN(r, m.cibil);      }).filter(function(x) { return x !== null; });
+  const lits       = data.map(function(r) { return getN(r, m.litigation); }).filter(function(x) { return x !== null; });
+
+  const avgRev  = avg(revenues);
+  const avgEBIT = avg(ebitdas);
+  const avgPAT  = avg(pats);
+  const avgDebt = avg(debts);
+  const avgEq   = avg(equities);
+  const avgCIB  = avg(cibils);
+  let avgDSCR   = avg(dscrs);
+  if (!avgDSCR && avgEBIT && avgDebt && avgDebt > 0) avgDSCR = avgEBIT / (avgDebt * 0.1);
+
+  const deRatio = (avgDebt && avgEq && avgEq !== 0) ? avgDebt / avgEq : null;
+  const margin  = (avgEBIT && avgRev && avgRev !== 0) ? avgEBIT / avgRev : null;
+
+  // Extract company name — skip numeric values, row indices, or very short strings
+  function cleanName(raw, fallback) {
+    if (!raw) return fallback;
+    const str = String(raw).trim();
+    // reject if it's a number, a single char, looks like a row index, or is just digits
+    if (!str || str.length < 3) return fallback;
+    if (/^\d+(\.\d+)?$/.test(str)) return fallback;  // pure number
+    if (/^[0-9\s\-\/]+$/.test(str)) return fallback;  // all digits/separators
+    return str;
+  }
+  const rawCompany  = m.company  ? getS(data[0], m.company)  : '';
+  const rawPromoter = m.promoter ? getS(data[0], m.promoter) : '';
+  const rawCin      = m.cin      ? getS(data[0], m.cin)      : '';
+  const rawIndustry = m.industry ? getS(data[0], m.industry) : '';
+  const filenameBase = filename.replace(/\.[^.]+$/, '').replace(/[_\-]/g, ' ').replace(/\b\w/g, function(c){return c.toUpperCase();});
+  const company  = cleanName(rawCompany,  filenameBase);
+  const promoter = cleanName(rawPromoter, '');
+  const cin      = rawCin && rawCin.length > 3 && !/^\d+$/.test(rawCin) ? rawCin : '';
+  const industry = cleanName(rawIndustry, '');
+
+  // Character score
+  let sc_char = 70;
+  if (avgCIB) sc_char = Math.min(95, 40 + avgCIB / 10);
+  if (lits.length && avg(lits) > 0) sc_char -= 12;
+  sc_char = Math.round(Math.max(10, Math.min(99, sc_char)));
+
+  // Capacity score
+  let sc_cap = 65;
+  if (avgDSCR) {
+    sc_cap = avgDSCR >= 3 ? 90 : avgDSCR >= 2 ? 78 : avgDSCR >= 1.5 ? 65 : avgDSCR >= 1 ? 48 : 28;
+  }
+  if (revenues.length >= 2 && revenues[revenues.length-1] > revenues[0]) sc_cap = Math.min(99, sc_cap + 5);
+  if (revenues.length >= 2 && revenues[revenues.length-1] < revenues[0]) sc_cap = Math.max(10, sc_cap - 8);
+  sc_cap = Math.round(sc_cap);
+
+  // Capital score
+  let sc_capit = 65;
+  if (deRatio !== null) sc_capit = deRatio <= 0.3 ? 88 : deRatio <= 0.6 ? 75 : deRatio <= 1.0 ? 60 : deRatio <= 1.5 ? 45 : 28;
+  sc_capit = Math.round(sc_capit);
+
+  // Collateral score
+  let sc_coll = 60;
+  if (avgEq && avgDebt) {
+    const cov = avgEq / avgDebt;
+    sc_coll = cov >= 2 ? 88 : cov >= 1 ? 72 : cov >= 0.5 ? 55 : 35;
+  }
+  sc_coll = Math.round(sc_coll);
+
+  // Conditions score
+  let sc_cond = 60;
+  if (margin !== null) sc_cond = margin >= 0.2 ? 78 : margin >= 0.12 ? 62 : margin >= 0.05 ? 48 : 32;
+  sc_cond = Math.round(sc_cond);
+
+  const score = Math.round(sc_char * 0.25 + sc_cap * 0.25 + sc_capit * 0.18 + sc_coll * 0.17 + sc_cond * 0.15);
+
+  let verdict, decision;
+  if (score >= 80)      { verdict = 'Highly Creditworthy';            decision = 'Approve — Unconditional'; }
+  else if (score >= 65) { verdict = 'Conditionally Approvable';       decision = 'Approve — Conditional'; }
+  else if (score >= 50) { verdict = 'Marginal — Refer to Committee';  decision = 'Refer to Credit Committee'; }
+  else                  { verdict = 'High Risk — Not Recommended';    decision = 'Decline'; }
+
+  // Recommended limit: ~20% of avg revenue, adjusted by score, floored at 5 Cr
+  let recLimit = null;
+  if (avgRev) recLimit = Math.max(5, Math.round(avgRev * 0.20 * (score / 100) * 10) / 10);
+
+  // ── Helper: format a single summary value (avg or last) ──
+  function fmtVal(arr, suffix) {
+    if (!arr || !arr.length) return '—';
+    suffix = suffix || ' Cr';
+    // If multi-year data (3+ rows), show last 3 as trend; else show avg
+    if (arr.length >= 3) {
+      const last3 = arr.slice(-3);
+      return last3.map(function(v) { return 'Rs.' + v.toFixed(1) + suffix.replace(' Cr',''); }).join(' → ') + suffix.replace(/[^a-zA-Z%]/g,'');
+    }
+    const a = arr.reduce(function(s,v){return s+v;},0) / arr.length;
+    return 'Rs.' + a.toFixed(1) + suffix;
+  }
+  function fmtSingle(v, prefix, suffix) {
+    if (v === null || v === undefined) return '—';
+    return (prefix||'') + v.toFixed(2) + (suffix||'');
+  }
+
+  // Litigation: rows with non-zero value represent companies/periods with a litigation flag, NOT individual court cases
+  const litFlaggedRows = lits.filter(function(v){return v>0;}).length;
+  const litTotalRows   = lits.length;
+  const litMaxVal      = lits.length ? Math.max.apply(null, lits.filter(function(v){return v>0;})) : 0;
+  const litAvgFlagged  = litFlaggedRows > 0 ? lits.filter(function(v){return v>0;}).reduce(function(s,v){return s+v;},0) / litFlaggedRows : 0;
+  const litPct         = litTotalRows > 0 ? (litFlaggedRows / litTotalRows * 100).toFixed(0) : 0;
+  const debtEbitda     = (avgEBIT && avgEBIT > 0 && avgDebt) ? avgDebt / avgEBIT : null;
+  const patMargin      = (avgPAT && avgRev && avgRev > 0) ? avgPAT / avgRev : null;
+  const interestCoverage = (avgEBIT && avgDebt && avgDebt > 0) ? avgEBIT / (avgDebt * 0.11) : null;
+
+  // ── AI Insight Summary — narrative text for the CAM ──
+  function buildAIInsight(cam_score, cam_verdict, cam_avgRev, cam_avgEBIT, cam_margin, cam_avgDSCR, cam_deRatio, cam_avgCIB, cam_flags) {
+    const highRisks = cam_flags.filter(function(f){return f.lvl==='HIGH';}).length;
+    const modRisks  = cam_flags.filter(function(f){return f.lvl==='MODERATE';}).length;
+    // Financial strength sentence
+    const finStr = cam_avgRev
+      ? 'The borrower demonstrates ' + (cam_margin >= 0.15 ? 'healthy' : cam_margin >= 0.08 ? 'adequate' : 'thin') +
+        ' operating margins of ' + (cam_margin ? (cam_margin*100).toFixed(1) : '—') + '% against average revenue of Rs.' +
+        (cam_avgRev ? cam_avgRev.toFixed(1) : '—') + ' Cr. ' +
+        (cam_avgEBIT ? 'Average EBITDA of Rs.' + cam_avgEBIT.toFixed(1) + ' Cr indicates ' +
+          (cam_margin >= 0.15 ? 'strong' : cam_margin >= 0.08 ? 'reasonable' : 'limited') + ' operating cash generation. ' : '')
+      : 'Insufficient revenue data to assess financial strength. ';
+    // Leverage / DSCR sentence
+    const levStr = cam_avgDSCR
+      ? 'Debt servicing capacity is ' + (cam_avgDSCR >= 2 ? 'strong' : cam_avgDSCR >= 1.5 ? 'adequate' : 'below acceptable levels') +
+        ' with a DSCR of ' + cam_avgDSCR.toFixed(2) + 'x. ' +
+        (cam_deRatio ? 'Balance sheet leverage of ' + (cam_deRatio*100).toFixed(0) + '% Debt/Equity is ' +
+          (cam_deRatio <= 0.6 ? 'conservative and well-structured.' : cam_deRatio <= 1 ? 'within acceptable banking norms.' : 'elevated and requires monitoring.') : '')
+      : 'Debt service coverage ratio data not available for direct assessment. ';
+    // Risk summary
+    const riskStr = highRisks === 0 && modRisks === 0
+      ? 'No material risk flags were identified in the dataset analysis. The credit profile is clean and consistent with the proposed facility structure.'
+      : highRisks > 0
+        ? highRisks + ' high-severity risk flag' + (highRisks > 1 ? 's' : '') + ' and ' + modRisks + ' moderate flag' + (modRisks !== 1 ? 's' : '') +
+          ' were identified. These require mandatory resolution or satisfactory explanation as conditions precedent to disbursal.'
+        : modRisks + ' moderate risk flag' + (modRisks !== 1 ? 's' : '') + ' identified. These do not individually preclude sanction but must be monitored via ongoing covenant reporting.';
+    // Overall level
+    const overallStr = 'Overall credit risk level is assessed as ' +
+      (cam_score >= 80 ? 'LOW.' : cam_score >= 65 ? 'MODERATE — subject to conditions.' : cam_score >= 50 ? 'ELEVATED — refer to Credit Committee.' : 'HIGH — facility not recommended at this time.');
+    return finStr + levStr + riskStr + ' ' + overallStr;
+  }
+
+  // ── Risk flags — professional banking language ──
+  const flags = [];
+  if (avgDSCR && avgDSCR < 1.5) flags.push({ lvl:'HIGH', title:'Insufficient Debt Service Coverage Ratio',
+    body:'The computed DSCR of ' + avgDSCR.toFixed(2) + 'x falls below the minimum acceptable threshold of 1.50x prescribed under internal credit policy. This indicates that the borrower\'s operating cash flows are insufficient to comfortably service total debt obligations including the proposed facility. The Relationship Manager must obtain a revised cash flow projection and three-year financial forecast. A DSCR floor covenant of 1.25x is recommended as a condition of sanction, with quarterly monitoring.',
+    src: 'Computed from ' + (m.dscr ? m.dscr : m.ebitda ? m.ebitda + ' and debt columns' : 'financial columns') });
+
+  if (deRatio && deRatio > 1) flags.push({ lvl:'HIGH', title:'Highly Leveraged Balance Sheet',
+    body:'The Debt/Equity ratio stands at ' + (deRatio*100).toFixed(0) + '%, materially exceeding the internal benchmark of 100%. With aggregate debt of Rs.' + (avgDebt||0).toFixed(1) + ' Cr against a net worth of Rs.' + (avgEq||0).toFixed(1) + ' Cr, the balance sheet is significantly geared. Any incremental borrowing will further erode financial flexibility and increase refinancing risk. Sanction should be conditioned on no further secured borrowings without prior written consent, and a D/E ceiling covenant of 1.20x is recommended.',
+    src: 'Computed from ' + (m.debt||'debt') + ' and ' + (m.equity||'equity') + ' columns' });
+
+  if (litFlaggedRows > 0) flags.push({ lvl: litPct > 30 ? 'HIGH' : 'MODERATE', title:'Litigation & Contingent Liability Exposure',
+    body: litPct + '% of dataset records (' + litFlaggedRows + ' out of ' + litTotalRows + ' entries) carry a litigation flag in the ' + (m.litigation||'litigation') + ' field. It is important to note that these represent financial data periods or sub-entities with reported litigation exposure, and are not individual court case counts. The average flagged litigation exposure per affected record is Rs.' + litAvgFlagged.toFixed(1) + ' Cr, with a peak of Rs.' + litMaxVal.toFixed(1) + ' Cr. Contingent liabilities of this magnitude could crystallise and materially impact net worth and repayment capacity. The borrower must provide: (i) a complete list of pending legal proceedings with case numbers and courts; (ii) latest legal opinion from a panel advocate; (iii) confirmation of adequate provisions in audited accounts.',
+    src: (m.litigation||'litigation') + ' column — ' + litFlaggedRows + ' of ' + litTotalRows + ' records flagged (' + litPct + '%)' });
+
+  if (margin && margin < 0.08) flags.push({ lvl:'MODERATE', title:'Thin EBITDA Margin — Limited Operational Buffer',
+    body:'The EBITDA margin of ' + (margin*100).toFixed(1) + '% is below the sector benchmark range of 8–12%. Average EBITDA of Rs.' + (avgEBIT||0).toFixed(1) + ' Cr on revenues of Rs.' + (avgRev||0).toFixed(1) + ' Cr reflects limited pricing power and/or elevated operating costs. In a stressed scenario (revenue decline of 10% or raw material cost increase of 5%), EBITDA could drop to levels that compromise debt servicing. Quarterly P&L monitoring and an EBITDA floor covenant of Rs.' + ((avgEBIT||1)*0.8).toFixed(1) + ' Cr are recommended.',
+    src: 'Computed from ' + (m.revenue||'revenue') + ' and ' + (m.ebitda||'EBITDA') + ' columns' });
+
+  if (avgCIB && avgCIB < 700) flags.push({ lvl:'MODERATE', title:'Promoter Credit Score Below Threshold',
+    body:'The average credit score across the dataset is ' + Math.round(avgCIB) + ', which is below the minimum threshold of 700 required under the bank\'s retail and MSME credit policy. Credit scores in this range (600–699) are classified as "fair to poor" by major credit bureaus and are associated with elevated probability of default. The credit officer must obtain the full CIBIL/Experian report for the promoter/guarantor, obtain written explanation for any past delinquencies, and assess whether scores reflect isolated events or systemic repayment behaviour.',
+    src: (m.cibil||'CIBIL/credit score') + ' column — average: ' + Math.round(avgCIB) });
+
+  if (revenues.length >= 2 && revenues[revenues.length-1] < revenues[revenues.length-2]) {
+    const revDelta = ((revenues[revenues.length-1]/revenues[revenues.length-2]-1)*100).toFixed(1);
+    flags.push({ lvl:'MODERATE', title:'Revenue Contraction — Demand Risk',
+      body:'Revenue declined by ' + Math.abs(revDelta) + '% in the most recent period (from Rs.' + revenues[revenues.length-2].toFixed(1) + ' Cr to Rs.' + revenues[revenues.length-1].toFixed(1) + ' Cr). The credit officer must assess whether this decline is (a) cyclical/seasonal and expected to reverse, (b) structural due to loss of key customers or market share, or (c) due to macroeconomic factors affecting the sector. An updated order book, key customer concentration analysis, and management commentary on forward revenue outlook are required before final sanction.',
+      src: (m.revenue||'revenue') + ' column — period-on-period trend' });
+  }
+
+  if (debtEbitda && debtEbitda > 4) flags.push({ lvl:'MODERATE', title:'Elevated Debt/EBITDA Multiple',
+    body:'The Debt/EBITDA ratio of ' + debtEbitda.toFixed(1) + 'x exceeds the acceptable ceiling of 4.0x for this credit category. An elevated multiple indicates that total indebtedness is high relative to operating earnings, raising refinancing and rollover risk. Lenders typically require Debt/EBITDA to decline to below 3.5x within 24 months of sanction. A deleveraging covenant — requiring the borrower to reduce total debt by at least 10% p.a. from operating cash flows — is recommended.',
+    src: 'Computed from ' + (m.debt||'debt') + ' and ' + (m.ebitda||'EBITDA') + ' columns' });
+
+  if (flags.length === 0) flags.push({ lvl:'CLEAR', title:'No Material Risk Flags Identified',
+    body:'A comprehensive analysis of the dataset found no high-severity or moderate-severity risk indicators. Key financial ratios — DSCR, Debt/Equity, EBITDA margin — are all within acceptable banking norms. The credit profile is consistent with the proposed facility. Standard credit monitoring applies: semi-annual financial reporting, annual audited accounts, and immediate notification of material adverse changes.',
+    src: 'Full dataset scan — all ' + data.length + ' records reviewed' });
+
+  // ── Financial summary table — ALWAYS AGGREGATED (avg), never raw arrays ──
+  // Each row shows ONE clean number representing the company's consolidated financials
+  const finRows = [];
+
+  // Helper: format a clean single Rs. value
+  function fmtRs(v) { return v !== null && v !== undefined ? 'Rs.' + v.toFixed(1) + ' Cr' : '—'; }
+  function fmtPct(v) { return v !== null && v !== undefined ? (v*100).toFixed(1) + '%' : '—'; }
+  function fmtX(v, tag) { return v !== null && v !== undefined ? v.toFixed(2) + 'x  (' + (tag||'') + ')' : '—'; }
+
+  // P&L Metrics (always single clean values)
+  if (avgRev)   finRows.push(['Revenue',               fmtRs(avgRev)]);
+  if (avgEBIT)  finRows.push(['EBITDA',                fmtRs(avgEBIT)]);
+  if (margin)   finRows.push(['EBITDA Margin',         fmtPct(margin)]);
+  if (avgPAT)   finRows.push(['Net Profit (PAT)',      fmtRs(avgPAT)]);
+  if (patMargin)finRows.push(['Net Profit Margin',     fmtPct(patMargin)]);
+
+  // Balance Sheet Metrics
+  if (avgDebt)  finRows.push(['Total Debt',            fmtRs(avgDebt)]);
+  if (avgEq)    finRows.push(['Net Worth / Equity',    fmtRs(avgEq)]);
+
+  // Key Ratios — formatted as "value  (interpretation)" so PDF can split them cleanly
+  if (avgDSCR)          finRows.push(['DSCR',                fmtX(avgDSCR,  avgDSCR >= 2 ? 'Adequate' : avgDSCR >= 1.5 ? 'Minimum' : 'Below threshold')]);
+  if (deRatio !== null) finRows.push(['Debt / Equity',       (deRatio*100).toFixed(0) + '%  (' + (deRatio <= 0.6 ? 'Comfortable' : deRatio <= 1 ? 'Moderate' : 'High') + ')']);
+  if (debtEbitda)       finRows.push(['Debt / EBITDA',       debtEbitda.toFixed(1) + 'x  (' + (debtEbitda <= 2 ? 'Low' : debtEbitda <= 4 ? 'Moderate' : 'High') + ')']);
+  if (interestCoverage) finRows.push(['Interest Coverage',   interestCoverage.toFixed(1) + 'x  (' + (interestCoverage >= 3 ? 'Strong' : interestCoverage >= 1.5 ? 'Adequate' : 'Weak') + ')']);
+  if (avgCIB)           finRows.push(['CIBIL / Credit Score', Math.round(avgCIB) + '  (' + (avgCIB >= 750 ? 'Excellent' : avgCIB >= 700 ? 'Good' : 'Below threshold') + ')']);
+  if (litFlaggedRows > 0) finRows.push(['Contingent Liabilities', 'Rs.' + (litAvgFlagged * litFlaggedRows).toFixed(1) + ' Cr  (' + litFlaggedRows + ' record' + (litFlaggedRows>1?'s':'') + ' flagged, ' + litPct + '% of dataset)']);
+
+  // Column profiling
+  const colProfile = headers.map(function(h) {
+    const vals = data.map(function(r) { return r[h]; }).filter(function(v) { return v !== null && v !== undefined && v !== ''; });
+    const nums = vals.map(function(v) { return parseFloat(v); }).filter(function(v) { return !isNaN(v); });
+    const isNum = nums.length > vals.length * 0.6;
+    return {
+      name: h, type: isNum ? 'num' : 'txt',
+      count: vals.length,
+      unique: new Set(vals.map(function(v) { return String(v); })).size,
+      avg: isNum && nums.length ? nums.reduce(function(a,b){return a+b;},0)/nums.length : null,
+      min: isNum && nums.length ? Math.min.apply(null, nums) : null,
+      max: isNum && nums.length ? Math.max.apply(null, nums) : null,
+    };
+  });
+
+  const aiInsight = buildAIInsight(score, verdict, avgRev, avgEBIT, margin, avgDSCR, deRatio, avgCIB, flags);
+
+  return {
+    company, promoter, cin, industry, filename,
+    rows: data.length, cols: headers.length,
+    score, verdict, decision,
+    sc_char, sc_cap, sc_capit, sc_coll, sc_cond,
+    avgRev, avgEBIT, avgPAT, avgDebt, avgEq, avgDSCR, avgCIB, deRatio, margin, recLimit,
+    revenues, ebitdas, pats, debts, equities,
+    flags, finRows, colProfile, aiInsight,
+    litFlaggedRows, litTotalRows, litPct,
+    litCount: litFlaggedRows,
+  };
+}
+
+// ═══════════════════════════════════════════════════
+// DASHBOARD BUILDER
+// ═══════════════════════════════════════════════════
+function buildDashboard(cam) {
+  document.getElementById('dash-empty').style.display = 'none';
+  document.getElementById('dash-main').style.display  = 'block';
+
+  // KPIs
+  const kpis = [
+    { v: cam.avgRev   ? cam.avgRev.toFixed(1)               : '—', k: 'Avg Revenue',    d: cam.revenues.length >= 2 ? (cam.revenues[cam.revenues.length-1] > cam.revenues[0] ? '↑ Growing' : '↓ Declining') : 'From dataset', cls: cam.revenues.length >= 2 && cam.revenues[cam.revenues.length-1] > cam.revenues[0] ? 'up' : 'dn' },
+    { v: cam.avgDSCR  ? cam.avgDSCR.toFixed(2) + '×'        : '—', k: 'DSCR',           d: cam.avgDSCR ? (cam.avgDSCR >= 2 ? 'Strong' : 'Monitor') : 'Not detected', cls: cam.avgDSCR && cam.avgDSCR >= 2 ? 'up' : 'neu' },
+    { v: cam.deRatio  ? (cam.deRatio*100).toFixed(0) + '%'  : '—', k: 'Debt / Equity',  d: cam.deRatio ? (cam.deRatio > 0.8 ? 'Elevated' : 'Acceptable') : 'Not detected', cls: cam.deRatio && cam.deRatio > 0.8 ? 'dn' : 'up' },
+    { v: cam.avgCIB   ? Math.round(cam.avgCIB).toString()   : '—', k: 'CIBIL Score',    d: cam.avgCIB ? (cam.avgCIB >= 700 ? 'Good' : 'Risky') : 'Not detected', cls: cam.avgCIB && cam.avgCIB >= 700 ? 'up' : 'dn' },
+  ];
+  document.getElementById('dash-kpis').innerHTML = kpis.map(function(k) {
+    return '<div class="stat"><div class="stat-v">' + k.v + '</div><div class="stat-k">' + k.k + '</div><div class="stat-d ' + k.cls + '">' + k.d + '</div></div>';
+  }).join('');
+
+  // Score card
+  const sc = cam.score;
+  const scColor = sc >= 80 ? 'var(--teal)' : sc >= 60 ? 'var(--gold)' : 'var(--rust)';
+  const dashArr = 301;
+  const dashOffset = dashArr - (sc / 100) * dashArr;
+  const ringColor = sc >= 80 ? '#2a9490' : sc >= 60 ? '#c9a84c' : '#b84c2a';
+  const vClass = sc >= 80 ? 'b-g' : sc >= 60 ? 'b-a' : 'b-r';
+
+  let scoreHTML = '<div style="display:flex;align-items:center;gap:18px;margin-bottom:18px">';
+  scoreHTML += '<div class="score-ring-wrap"><svg width="110" height="110" viewBox="0 0 110 110"><circle cx="55" cy="55" r="48" fill="none" stroke="#eae6db" stroke-width="9"/><circle cx="55" cy="55" r="48" fill="none" stroke="' + ringColor + '" stroke-width="9" stroke-dasharray="' + dashArr + '" stroke-dashoffset="' + dashOffset + '" stroke-linecap="round"/></svg><div class="score-ring-inner"><span class="score-num" style="color:' + scColor + '">' + sc + '</span><span class="score-denom">/ 100</span></div></div>';
+  scoreHTML += '<div><div style="font-family:\'Playfair Display\',serif;font-size:19px;font-weight:700;color:' + scColor + ';margin-bottom:5px">' + cam.verdict + '</div>';
+  scoreHTML += '<div style="font-size:12px;color:var(--muted);line-height:1.65;max-width:270px">' + cam.rows + ' rows from <strong>' + cam.filename + '</strong> — ' + cam.finRows.length + ' financial metrics detected.</div>';
+  scoreHTML += '<div style="margin-top:8px"><span class="badge ' + vClass + '">' + cam.decision + '</span></div></div></div>';
+
+  // Five Cs grid
+  scoreHTML += '<div class="cs-grid">';
+  scoreHTML += csCard('Character',  cam.sc_char);
+  scoreHTML += csCard('Capacity',   cam.sc_cap);
+  scoreHTML += csCard('Capital',    cam.sc_capit);
+  scoreHTML += csCard('Collateral', cam.sc_coll);
+  scoreHTML += '<div class="cs-card ' + csClass(cam.sc_cond) + ' cs-full"><div class="cs-name">Conditions</div><div class="cs-val" style="color:' + csColor(cam.sc_cond) + '">' + cam.sc_cond + '</div><div class="pbar"><div class="pfill ' + csFill(cam.sc_cond) + '" style="width:' + cam.sc_cond + '%"></div></div><div class="cs-note">Sector environment, margins, macro factors</div></div>';
+  scoreHTML += '</div>';
+  document.getElementById('dash-score-body').innerHTML = scoreHTML;
+
+  // Flags
+  const highCount = cam.flags.filter(function(f) { return f.lvl !== 'CLEAR'; }).length;
+  document.getElementById('dash-flag-count').textContent = highCount + ' issue' + (highCount !== 1 ? 's' : '');
+  document.getElementById('dash-flags').innerHTML = cam.flags.map(function(f) {
+    const cls = f.lvl === 'HIGH' ? 'al-r' : f.lvl === 'MODERATE' ? 'al-a' : 'al-g';
+    const icon = f.lvl === 'HIGH' ? '⚠' : f.lvl === 'MODERATE' ? '◈' : '✓';
+    return '<div class="alert ' + cls + '"><span class="al-icon">' + icon + '</span><div><strong>' + f.title + ':</strong> ' + f.body + '<br><span style="font-family:\'DM Mono\',monospace;font-size:8.5px;opacity:.55">Source: ' + f.src + '</span></div></div>';
+  }).join('');
+
+  // Financial table
+  if (cam.finRows.length) {
+    document.getElementById('dash-fin-src').textContent = cam.filename;
+    // Split into metrics and ratios
+    const metricRows = cam.finRows.filter(function(r){return r[1].indexOf('Rs.')!== -1;});
+    const ratioRows  = cam.finRows.filter(function(r){return r[1].indexOf('Rs.')=== -1;});
+    let tblHTML = '<table><thead><tr><th>Metric</th><th>Consolidated Value</th></tr></thead><tbody>';
+    tblHTML += metricRows.map(function(r) { return '<tr><td style="font-weight:500">' + r[0] + '</td><td style="font-family:\'DM Mono\',monospace;font-size:11.5px">' + r[1] + '</td></tr>'; }).join('');
+    tblHTML += '</tbody></table>';
+    if (ratioRows.length) {
+      tblHTML += '<div style="padding:10px 18px 4px;font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)">Key Ratios</div>';
+      tblHTML += '<table><thead><tr><th>Ratio</th><th>Value</th><th>Signal</th></tr></thead><tbody>';
+      tblHTML += ratioRows.map(function(r) {
+        const parts = r[1].split('  ');
+        const val = parts[0], interp = parts[1] ? parts[1].replace(/[()]/g,'') : '';
+        const cls = ['Adequate','Strong','Low','Comfortable','Good','Excellent'].some(function(k){return interp.indexOf(k)!==-1;}) ? 'up' :
+                    ['Below threshold','High','Weak'].some(function(k){return interp.indexOf(k)!==-1;}) ? 'dn' : 'neu';
+        return '<tr><td style="font-weight:500">' + r[0] + '</td><td style="font-family:\'DM Mono\',monospace;font-size:11.5px">' + val + '</td><td class="' + cls + '" style="font-size:11.5px;font-weight:600">' + interp + '</td></tr>';
+      }).join('') + '</tbody></table>';
+    }
+    document.getElementById('dash-fin').innerHTML = tblHTML;
+  } else {
+    document.getElementById('dash-fin').innerHTML = '<div class="empty" style="padding:16px"><p style="font-size:12px;color:var(--muted)">No numeric financial columns detected. Use Field Mapper in Data Ingestor.</p></div>';
+  }
+
+  // Rec box
+  document.getElementById('dash-rec').innerHTML = '<div class="rec-box"><div class="rec-lbl">AI Recommendation</div><div class="rec-dec">' + cam.decision + '</div><div class="rec-amt">' + (cam.recLimit ? 'Suggested: Rs.' + cam.recLimit.toFixed(1) + ' Cr · ' : '') + 'Score: ' + cam.score + '/100</div><div class="rec-body"><strong>Rationale:</strong> Score ' + cam.score + '/100 from ' + cam.rows + ' data rows. Character: ' + cam.sc_char + ' · Capacity: ' + cam.sc_cap + ' · Capital: ' + cam.sc_capit + ' · Collateral: ' + cam.sc_coll + ' · Conditions: ' + cam.sc_cond + '.</div></div>';
+
+  // Breakdown bars
+  const dims = [['Character',cam.sc_char,'pf-teal'],['Capacity',cam.sc_cap,'pf-teal'],['Capital',cam.sc_capit,'pf-gold'],['Collateral',cam.sc_coll,'pf-gold'],['Conditions',cam.sc_cond,'pf-rust']];
+  document.getElementById('dash-breakdown').innerHTML = dims.map(function(d) {
+    return '<div style="margin-bottom:9px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px"><span style="font-family:\'DM Mono\',monospace;font-size:9px">' + d[0] + '</span><span>' + d[1] + '/100</span></div><div class="pbar"><div class="pfill ' + d[2] + '" style="width:' + d[1] + '%"></div></div></div>';
+  }).join('');
+
+  // Column profile
+  const numCols = cam.colProfile.filter(function(c) { return c.type === 'num'; });
+  document.getElementById('dash-col-count').textContent = cam.colProfile.length + ' columns';
+  document.getElementById('dash-cols').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px">' + numCols.slice(0, 8).map(function(c) {
+    return '<div style="background:var(--cream);border-radius:3px;padding:10px;border-left:3px solid var(--teal2)"><div style="font-family:\'DM Mono\',monospace;font-size:7px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + c.name + '</div><div style="font-family:\'Playfair Display\',serif;font-size:17px;font-weight:700">' + (c.avg !== null ? c.avg.toFixed(1) : '—') + '</div><div style="font-size:10px;color:var(--muted)">avg · ' + c.count + ' rows</div></div>';
+  }).join('') + '</div>';
+
+  animateBars();
+}
+
+function csClass(s) { return s >= 75 ? 'cs-st' : s >= 55 ? 'cs-mo' : 'cs-wk'; }
+function csColor(s) { return s >= 75 ? 'var(--teal)' : s >= 55 ? 'var(--gold)' : 'var(--rust)'; }
+function csFill(s)  { return s >= 75 ? 'pf-teal' : s >= 55 ? 'pf-gold' : 'pf-rust'; }
+function csCard(name, s) {
+  return '<div class="cs-card ' + csClass(s) + '"><div class="cs-name">' + name + '</div><div class="cs-val" style="color:' + csColor(s) + '">' + s + '</div><div class="pbar"><div class="pfill ' + csFill(s) + '" style="width:' + s + '%"></div></div></div>';
+}
+function animateBars() {
+  document.querySelectorAll('.pfill').forEach(function(el) {
+    const w = el.style.width; el.style.width = '0';
+    requestAnimationFrame(function() { el.style.transition = 'width 1s ease'; el.style.width = w; });
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// PREVIEW CARD
+// ═══════════════════════════════════════════════════
+function buildPreviewCard(data, headers) {
+  const rows8 = data.slice(0, 8);
+  document.getElementById('preview-title').textContent = App.filename + ' (first 8 rows)';
+  const th = '<thead><tr><th>#</th>' + headers.map(function(h) { return '<th>' + h + '</th>'; }).join('') + '</tr></thead>';
+  const tb = '<tbody>' + rows8.map(function(r, i) {
+    return '<tr><td style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted);padding-right:8px">' + (i+1) + '</td>' + headers.map(function(h) { return '<td>' + (r[h] !== undefined && r[h] !== null ? r[h] : '') + '</td>'; }).join('') + '</tr>';
+  }).join('') + '</tbody>';
+  document.getElementById('preview-body').innerHTML = '<table>' + th + tb + '</table>';
+
+  // Column summary
+  const numC = App.cam.colProfile.filter(function(c) { return c.type === 'num'; }).length;
+  const txtC = App.cam.colProfile.filter(function(c) { return c.type === 'txt'; }).length;
+  document.getElementById('col-count-badge').textContent = headers.length + ' cols';
+  document.getElementById('col-summary').innerHTML =
+    '<div style="display:flex;gap:7px;margin-bottom:10px"><span class="badge b-b">' + numC + ' Numeric</span><span class="badge b-k">' + txtC + ' Text</span><span class="badge b-g">' + data.length + ' Rows</span></div>' +
+    '<div style="display:flex;flex-direction:column;gap:3px">' + headers.slice(0, 12).map(function(h) {
+      const cp = App.cam.colProfile.find(function(c) { return c.name === h; });
+      return '<div style="display:flex;align-items:center;gap:8px;font-size:11.5px;padding:3px 0;border-bottom:1px solid var(--line)"><span style="font-family:\'DM Mono\',monospace;font-size:8px;color:var(--muted);width:12px">' + (cp.type === 'num' ? '#' : 'A') + '</span><span style="flex:1;font-weight:500">' + h + '</span><span style="font-family:\'DM Mono\',monospace;font-size:9px;color:var(--muted)">' + (cp.type === 'num' && cp.avg !== null ? 'avg ' + cp.avg.toFixed(1) : cp.unique + ' unique') + '</span></div>';
+    }).join('') + (headers.length > 12 ? '<div style="font-size:11px;color:var(--muted);padding-top:4px">…and ' + (headers.length-12) + ' more columns</div>' : '') + '</div>';
+}
+
+// ═══════════════════════════════════════════════════
+// FIELD MAPPER
+// ═══════════════════════════════════════════════════
+function buildFieldMapper(headers, mapping) {
+  const fields = Object.keys(FIELD_KW);
+  const opts = headers.map(function(h) { return '<option value="' + h + '">' + h + '</option>'; }).join('');
+  document.getElementById('mapper-grid').innerHTML = fields.map(function(f) {
+    const sel = mapping[f] || '';
+    return '<div style="background:var(--cream);border-radius:3px;padding:11px"><div style="font-family:\'DM Mono\',monospace;font-size:7.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">' + f + '</div><select class="form-ctrl" id="fm-' + f + '" style="font-size:12px;padding:6px 10px"><option value="">— not mapped —</option>' + headers.map(function(h) { return '<option value="' + h + '"' + (h === sel ? ' selected' : '') + '>' + h + '</option>'; }).join('') + '</select></div>';
+  }).join('');
+}
+
+function applyFieldMap() {
+  Object.keys(FIELD_KW).forEach(function(f) {
+    const el = document.getElementById('fm-' + f);
+    if (el) App.mapping[f] = el.value || undefined;
+  });
+  App.cam = computeCAM(App.dataset, App.headers, App.mapping, App.filename);
+  App.baseScore = App.cam.score;
+  App.insAdj = 0;
+  buildDashboard(App.cam);
+  buildAnalysisCard(App.cam);
+  prefillCAMForm(App.cam);
+  document.getElementById('ins-base-score').textContent  = App.cam.score;
+  document.getElementById('ins-final-score').textContent = App.cam.score;
+  document.getElementById('ins-adj').textContent = '+0';
+  toast_('✓ Field mapping applied — score: ' + App.cam.score + '/100');
+}
+
+// ═══════════════════════════════════════════════════
+// ANALYSIS CARD
+// ═══════════════════════════════════════════════════
+function buildAnalysisCard(cam) {
+  const mapped = Object.values(App.mapping).filter(Boolean).length;
+  document.getElementById('analysis-badge').textContent = mapped + ' fields mapped';
+  const cls = cam.score >= 65 ? 'al-g' : cam.score >= 50 ? 'al-a' : 'al-r';
+  const icon = cam.score >= 65 ? '✓' : cam.score >= 50 ? '◈' : '⚠';
+  document.getElementById('analysis-body').innerHTML =
+    '<div style="display:flex;gap:14px;margin-bottom:14px">' +
+    '<div class="stat" style="flex:1;padding:12px"><div class="stat-v" style="font-size:20px">' + cam.score + '</div><div class="stat-k">Score</div></div>' +
+    '<div class="stat" style="flex:2;padding:12px"><div class="stat-v" style="font-size:13px;line-height:1.3">' + cam.verdict + '</div><div class="stat-k">Verdict</div></div>' +
+    '<div class="stat" style="flex:1;padding:12px"><div class="stat-v" style="font-size:18px">' + cam.flags.filter(function(f){return f.lvl!=='CLEAR';}).length + '</div><div class="stat-k">Risks</div></div>' +
+    '</div>' +
+    '<div class="alert ' + cls + '"><span class="al-icon">' + icon + '</span><div><strong>' + cam.decision + '</strong> — ' + cam.verdict + '.' + (cam.recLimit ? ' Suggested limit: Rs.' + cam.recLimit.toFixed(1) + ' Cr.' : '') + '</div></div>';
+}
+
+// ═══════════════════════════════════════════════════
+// LOADED FILES — rebuilt from vaultRegistry on every switch
+// ═══════════════════════════════════════════════════
+function addToLoadedFiles(filename, rows, cols) {
+  // Legacy shim — real logic in rebuildLoadedList()
+  rebuildLoadedList();
+}
+
+function rebuildLoadedList() {
+  var reg = App.vaultRegistry;
+  if (!reg.length) return;
+  document.getElementById('loaded-badge').textContent = reg.length;
+  document.getElementById('loaded-section').style.display = 'block';
+  document.getElementById('loaded-list').innerHTML = reg.map(function(f, i) {
+    var isActive  = (i === App.activeVaultIdx);
+    var dotCls    = isActive ? 'pd-done' : 'pd-pending';
+    var activeLbl = isActive ? '<span class="badge b-g" style="font-size:7px;padding:2px 6px;margin-left:6px">Active</span>' : '';
+    var switchBtn = isActive
+      ? '<button class="btn btn-outline btn-sm" disabled style="opacity:.4;cursor:default">In Use</button>'
+      : '<button class="btn btn-teal btn-sm" onclick="switchDataset(' + i + ')">Switch &#8635;</button>';
+    return '<div class="pipe" style="' + (isActive ? 'background:rgba(26,92,90,.07);border-radius:4px;padding:4px 8px;' : '') + '">' +
+      '<div class="pipe-dot ' + dotCls + '"></div>' +
+      '<div class="pipe-name" style="flex:1">' + f.filename + activeLbl + '</div>' +
+      '<span class="pipe-sz">' + f.rows + ' rows &middot; ' + f.cols + ' cols</span>&nbsp;' +
+      '<button class="btn btn-outline btn-sm" onclick="switchDatasetAndView(' + i + ')">View</button>&nbsp;' +
+      switchBtn + '&nbsp;' +
+      '<button class="btn btn-outline btn-sm" onclick="switchDatasetAndCAM(' + i + ')">CAM</button>' +
+      '</div>';
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════
+// VAULT — adds/updates dataset row; always uses rebuildVaultDatasetRows for consistency
+// ═══════════════════════════════════════════════════
+function addToVault(filename, rows, score) {
+  // Dataset rows are now fully managed by rebuildVaultDatasetRows
+  // which is already called by activateDataset before addToVault.
+  // This function is kept as a no-op shim so existing call sites don't break.
+  // rebuildVaultDatasetRows() has already updated the DOM by the time we get here.
+}
+
+// Helper: find vaultRegistry index by filename
+function getVaultIdx(filename) {
+  return App.vaultRegistry.findIndex(function(e) { return e.filename === filename; });
+}
+
+// ═══════════════════════════════════════════════════
+// DATASET SWITCHING — three entry points
+// ═══════════════════════════════════════════════════
+
+// Switch active dataset (from loaded-list "Switch" button)
+function switchDataset(idx) {
+  if (idx < 0 || idx >= App.vaultRegistry.length) return;
+  if (idx === App.activeVaultIdx) { toast_(App.vaultRegistry[idx].filename + ' is already active'); return; }
+  activateDataset(idx, false);
+  // Show a brief highlight on the dropzone to confirm switch
+  setDropzoneState('\u21bb', 'Switching to ' + App.vaultRegistry[idx].filename + '\u2026', 'Please wait\u2026', false);
+  setTimeout(function() {
+    setDropzoneState('\u2713', App.vaultRegistry[idx].filename + ' \u2014 loaded', App.vaultRegistry[idx].rows + ' rows \u00b7 ' + App.vaultRegistry[idx].cols + ' columns', true);
+  }, 400);
+  // Update vault active badge
+  addToVault(App.vaultRegistry[idx].filename, App.vaultRegistry[idx].rows, App.vaultRegistry[idx].cam.score);
+}
+
+// Switch + open modal viewer
+function switchDatasetAndView(idx) {
+  if (idx < 0) { toast_('Dataset not found in vault'); return; }
+  if (idx !== App.activeVaultIdx) switchDataset(idx);
+  setTimeout(openModal, 150);
+}
+
+// Switch + navigate to CAM Generator
+function switchDatasetAndCAM(idx) {
+  if (idx < 0) { toast_('Dataset not found in vault'); return; }
+  if (idx !== App.activeVaultIdx) switchDataset(idx);
+  setTimeout(function() { goPage('camgen'); buildPreview(); }, 200);
+}
+
+
+// ═══════════════════════════════════════════════════
+// DATASET MODAL
+// ═══════════════════════════════════════════════════
+function openModal() {
+  if (!App.dataset) { toast_('No dataset loaded — use Data Ingestor first'); goPage('ingestor'); return; }
+  App.modalData = App.dataset.slice();
+  App.modalPage = 0;
+  App.modalSort = { col: -1, asc: true };
+  renderModal();
+  document.getElementById('ds-modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('ds-modal').classList.remove('open');
+}
+
+document.getElementById('ds-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
+
+function renderModal() {
+  const data    = App.modalData;
+  const hdrs    = App.headers;
+  const pg      = App.modalPage;
+  const ps      = App.modalPageSize;
+  const start   = pg * ps;
+  const end     = Math.min(start + ps, data.length);
+  const pageData = data.slice(start, end);
+  const totalPg = Math.ceil(data.length / ps);
+
+  document.getElementById('modal-title').textContent = App.filename;
+  document.getElementById('modal-meta').textContent  = data.length + ' rows · ' + hdrs.length + ' cols · Page ' + (pg+1) + ' of ' + totalPg;
+  document.getElementById('modal-foot-info').textContent = 'Showing ' + (start+1) + '–' + end + ' of ' + data.length + ' rows · ' + hdrs.length + ' columns';
+
+  // Populate column filter
+  const colSel = document.getElementById('modal-col');
+  if (colSel.options.length <= 1) {
+    hdrs.forEach(function(h) { const o = document.createElement('option'); o.value = h; o.textContent = h; colSel.appendChild(o); });
+  }
+
+  // Detect numeric columns
+  const numColSet = new Set(App.cam ? App.cam.colProfile.filter(function(c){return c.type==='num';}).map(function(c){return c.name;}) : []);
+
+  const th = '<thead><tr><th style="min-width:32px">#</th>' + hdrs.map(function(h, i) {
+    const arrow = App.modalSort.col === i ? (App.modalSort.asc ? ' ↑' : ' ↓') : ' ⇅';
+    return '<th onclick="sortModal(' + i + ')" title="Click to sort">' + h + '<span style="opacity:.45">' + arrow + '</span></th>';
+  }).join('') + '</tr></thead>';
+
+  const tb = '<tbody>' + pageData.map(function(row, ri) {
+    const tds = hdrs.map(function(h) {
+      const v = row[h] !== undefined && row[h] !== null ? row[h] : '';
+      const n = parseFloat(v);
+      let cls = '';
+      if (numColSet.has(h) && !isNaN(n)) {
+        const cp = App.cam && App.cam.colProfile.find(function(c){return c.name===h;});
+        if (cp && cp.avg !== null) {
+          cls = n < cp.avg * 0.5 ? 'td-lo' : n > cp.avg * 1.5 ? 'td-hi' : 'td-num';
+        } else { cls = 'td-num'; }
+      }
+      return '<td class="' + cls + '">' + v + '</td>';
+    }).join('');
+    return '<tr><td class="row-no">' + (start+ri+1) + '</td>' + tds + '</tr>';
+  }).join('') + '</tbody>';
+
+  document.getElementById('modal-body').innerHTML = '<table><colgroup><col style="width:36px">' + hdrs.map(function(){return '<col>';}).join('') + '</colgroup>' + th + tb + '</table>';
+
+  // Pager
+  let pager = '';
+  if (totalPg > 1) {
+    pager += '<button class="btn btn-outline btn-sm" onclick="setModalPg(0)" ' + (pg===0?'disabled':'') + '>«</button>';
+    pager += '<button class="btn btn-outline btn-sm" onclick="setModalPg(' + (pg-1) + ')" ' + (pg===0?'disabled':'') + '>‹</button>';
+    const s2 = Math.max(0, pg-2), e2 = Math.min(totalPg-1, pg+2);
+    for (let i = s2; i <= e2; i++) pager += '<button class="btn ' + (i===pg?'btn-teal':'btn-outline') + ' btn-sm" onclick="setModalPg(' + i + ')">' + (i+1) + '</button>';
+    pager += '<button class="btn btn-outline btn-sm" onclick="setModalPg(' + (pg+1) + ')" ' + (pg===totalPg-1?'disabled':'') + '>›</button>';
+    pager += '<button class="btn btn-outline btn-sm" onclick="setModalPg(' + (totalPg-1) + ')" ' + (pg===totalPg-1?'disabled':'') + '>»</button>';
+  }
+  document.getElementById('modal-pager').innerHTML = pager;
+}
+
+function setModalPg(p) { App.modalPage = p; renderModal(); }
+
+function sortModal(ci) {
+  if (App.modalSort.col === ci) App.modalSort.asc = !App.modalSort.asc;
+  else { App.modalSort.col = ci; App.modalSort.asc = true; }
+  const h = App.headers[ci];
+  const asc = App.modalSort.asc;
+  App.modalData.sort(function(a, b) {
+    const av = a[h], bv = b[h];
+    const an = parseFloat(av), bn = parseFloat(bv);
+    if (!isNaN(an) && !isNaN(bn)) return asc ? an-bn : bn-an;
+    return asc ? String(av||'').localeCompare(String(bv||'')) : String(bv||'').localeCompare(String(av||''));
+  });
+  App.modalPage = 0;
+  renderModal();
+}
+
+function filterModal() {
+  const q   = (document.getElementById('modal-search').value || '').toLowerCase();
+  const col = document.getElementById('modal-col').value;
+  if (!q && !col) {
+    App.modalData = App.dataset.slice();
+  } else {
+    App.modalData = App.dataset.filter(function(row) {
+      if (col) return String(row[col] || '').toLowerCase().indexOf(q) !== -1;
+      return Object.values(row).some(function(v) { return String(v || '').toLowerCase().indexOf(q) !== -1; });
+    });
+  }
+  App.modalPage = 0;
+  renderModal();
+}
+
+function exportCSV() {
+  if (!App.modalData.length) return;
+  const hdrs = App.headers;
+  const rows = [hdrs.join(',')].concat(App.modalData.map(function(r) {
+    return hdrs.map(function(h) { return JSON.stringify(r[h] !== undefined ? r[h] : ''); }).join(',');
+  }));
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = App.filename.replace(/\.[^.]+$/, '') + '_export.csv';
+  a.click();
+  toast_('✓ CSV exported');
+}
+
+function goGenerateCAM() { closeModal(); goPage('camgen'); buildPreview(); }
+
+// ═══════════════════════════════════════════════════
+// CAM GENERATOR — helpers
+// ═══════════════════════════════════════════════════
+function isValidCompanyName(v) {
+  if (!v) return false;
+  v = String(v).trim();
+  if (v.length < 3) return false;
+  if (/^\d+(\.\d+)?$/.test(v)) return false;
+  if (/^(sample|intelli.?credit|dataset|test|dummy|demo|intelli)/i.test(v)) return false;
+  return true;
+}
+
+function buildAIInsightNarrative(cam, company, score) {
+  var co = company || (cam && cam.company) || "The Borrower";
+  var finStr = "";
+  if (cam && cam.avgRev) {
+    var mPct  = cam.margin ? (cam.margin*100).toFixed(1) + "% " : "N/A ";
+    var mWord = cam.margin >= 0.18 ? "healthy" : cam.margin >= 0.10 ? "moderate" : "below-par";
+    finStr = co + " demonstrates " + mWord + " operating profitability with an EBITDA margin of " + mPct + "on average revenue of Rs." + cam.avgRev.toFixed(1) + " Cr. ";
+    if (cam.avgPAT) finStr += "Net profitability (PAT: Rs." + cam.avgPAT.toFixed(1) + " Cr) provides " + (cam.avgPAT > 0 ? "adequate" : "insufficient") + " internal accruals for debt servicing. ";
+  } else {
+    finStr = "Revenue data was not detected in the mapped columns. Financial strength is assessed from ratio analysis only. ";
+  }
+  var levStr = "";
+  if (cam && cam.deRatio !== null) levStr += "The balance sheet carries " + (cam.deRatio <= 0.5 ? "conservative" : cam.deRatio <= 1.0 ? "moderate" : "elevated") + " leverage (D/E: " + (cam.deRatio*100).toFixed(0) + "%). ";
+  if (cam && cam.avgDSCR) levStr += "Debt service coverage of " + cam.avgDSCR.toFixed(2) + "x " + (cam.avgDSCR >= 2.0 ? "comfortably supports" : cam.avgDSCR >= 1.5 ? "adequately meets" : "marginally covers") + " proposed repayment obligations. ";
+  // Litigation: rows ≠ court cases
+  var litStr = "";
+  if (cam && cam.litCount && cam.litCount > 0) {
+    litStr = "Note: The dataset comprises " + cam.rows + " records. Litigation flags in the data identify borrowers with known legal exposure — this does not imply " + cam.rows + " separate court cases. Legal due diligence on " + co + " specifically is required to determine current case count and quantum. ";
+  }
+  var highC = cam ? cam.flags.filter(function(f){return f.lvl==="HIGH";}).length : 0;
+  var modC  = cam ? cam.flags.filter(function(f){return f.lvl==="MODERATE";}).length : 0;
+  var riskStr = "";
+  if (highC === 0 && modC === 0) {
+    riskStr = "No high-severity risk flags were identified. The borrower presents a clean risk profile within standard banking parameters.";
+  } else {
+    riskStr = highC + " HIGH and " + modC + " MODERATE risk indicator" + (highC+modC !== 1 ? "s were" : " was") + " detected. " + (highC > 0 ? "High-severity flags require resolution prior to disbursement. " : "All flags are moderate and can be managed through covenants. ");
+  }
+  var riskLevel  = score >= 80 ? "LOW" : score >= 65 ? "MODERATE" : score >= 50 ? "ELEVATED" : "HIGH";
+  var riskAction = score >= 80 ? "sanction is recommended without conditions."
+    : score >= 65 ? "conditional sanction is appropriate, subject to mitigant actions in Section 5."
+    : score >= 50 ? "the proposal should be referred to the Credit Committee with additional due diligence."
+    : "this proposal is not recommended for sanction in its current form.";
+  return finStr + levStr + litStr + riskStr + " Overall credit risk is assessed as " + riskLevel + " (Score: " + score + "/100) — " + riskAction;
+}
+
+function prefillCAMForm(cam) {
+  // ── Company: always force-write from dataset — wipes any previously-typed stale name ──
+  var filenameCompany = cam.filename
+    ? cam.filename.replace(/\.[^.]+$/, '').replace(/[_\-]/g, ' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); })
+    : '';
+  var resolvedCompany = isValidCompanyName(cam.company) ? cam.company : filenameCompany;
+  document.getElementById('cam-company').value = resolvedCompany || '';
+  // Tag the field with the cam source so buildPreview can detect when form is stale
+  document.getElementById('cam-company').dataset.camSource = cam.filename || '';
+
+  // ── CIN: use dataset value or clear it so user fills it in ──
+  document.getElementById('cam-cin').value =
+    (cam.cin && cam.cin.length > 5) ? cam.cin : '';
+
+  // ── Loan requested: always re-derive from this dataset's revenue ──
+  document.getElementById('cam-req').value =
+    cam.avgRev && cam.avgRev > 0 ? (cam.avgRev * 0.18).toFixed(0) : '';
+
+  // ── Recommended limit: always from this dataset's computed limit ──
+  document.getElementById('cam-rec').value = cam.recLimit ? cam.recLimit.toFixed(1) : '';
+
+  // ── Decision: always from this dataset's AI decision ──
+  document.getElementById('cam-decision').value = cam.decision;
+}
+
+function buildPreview() {
+  const cam      = App.cam;
+
+  // ── Sanitized form values — always reflect the loaded dataset ──
+  // Derive a readable name from the filename as the ultimate fallback (never hard-code a company name)
+  const filenameAsCompany = cam
+    ? cam.filename.replace(/\.[^.]+$/, '').replace(/[_\-]/g, ' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); })
+    : '';
+
+  // ── Company name: always take from dataset unless user has manually edited it for THIS exact dataset ──
+  // We detect "manually edited" by comparing the form's data-cam-source tag to the current cam filename.
+  const companyField   = document.getElementById('cam-company');
+  const formCamSource  = companyField.dataset.camSource || '';
+  const isStaleFormVal = cam && (formCamSource !== (cam.filename || ''));
+  const rawCo          = companyField.value.trim();
+  // If the form value was set for a different dataset → ignore it and use the current dataset's name
+  const company = (!isStaleFormVal && isValidCompanyName(rawCo)) ? rawCo
+                : (cam && isValidCompanyName(cam.company)) ? cam.company
+                : filenameAsCompany || 'Borrower';
+
+  const rawCin  = document.getElementById('cam-cin').value.trim();
+  const cin     = (rawCin && rawCin.length > 5 && !/sample|test/i.test(rawCin)) ? rawCin
+                : (cam && cam.cin && cam.cin.length > 5) ? cam.cin
+                : 'See company records';
+
+  const rawReq  = document.getElementById('cam-req').value;
+  const req     = (rawReq && parseFloat(rawReq) > 0) ? rawReq
+                : (cam && cam.avgRev && cam.avgRev > 0) ? (cam.avgRev * 0.18).toFixed(0)
+                : '';
+
+  const rawRec  = document.getElementById('cam-rec').value;
+  const rec     = (rawRec && parseFloat(rawRec) > 0) ? rawRec
+                : (cam && cam.recLimit) ? cam.recLimit.toFixed(1)
+                : (parseFloat(req||0) * 0.85).toFixed(1);
+
+  const rate     = document.getElementById('cam-rate').value || '10.75';
+  const tenor    = document.getElementById('cam-tenor').value || '5';
+  const decision = document.getElementById('cam-decision').value;
+  const score    = App.baseScore + App.insAdj || (cam ? cam.score : 0);
+  const dateStr  = new Date().toLocaleDateString('en-IN', { day:'2-digit', month:'long', year:'numeric' });
+  const industry = (cam && cam.industry && cam.industry.length > 2 && !/sample|dataset/i.test(cam.industry))
+                 ? cam.industry
+                 : (cam ? cam.filename.split(/[_\-\s\.]/)[0].replace(/\b\w/g,function(c){return c.toUpperCase();}) : 'As per loan application');
+  const promoter = (cam && cam.promoter && cam.promoter.length > 2 && !/sample|dataset/i.test(cam.promoter))
+                 ? cam.promoter
+                 : 'As per KYC documents';
+
+  // Sync form fields with resolved values and stamp the source so next call knows which cam they belong to
+  companyField.value                = company;
+  companyField.dataset.camSource    = cam ? (cam.filename || '') : '';
+  document.getElementById('cam-cin').value     = cin !== 'See company records' ? cin : '';
+  document.getElementById('cam-req').value     = req;
+  document.getElementById('cam-rec').value     = rec;
+
+  // ── Financial metrics table (aggregated) ──
+  let finTableHTML = '<p style="color:var(--muted);font-size:12px">No financial metrics extracted. Map columns in Data Ingestor.</p>';
+  if (cam && cam.finRows.length) {
+    const RATIO_KEYS = ['DSCR','Debt / Equity','Debt / EBITDA','Interest Coverage','CIBIL','Contingent'];
+    const mRows = cam.finRows.filter(function(r){ return !RATIO_KEYS.some(function(k){return r[0].indexOf(k)!==-1;}); });
+    const rRows = cam.finRows.filter(function(r){ return RATIO_KEYS.some(function(k){return r[0].indexOf(k)!==-1;}); });
+    finTableHTML = '';
+    if (mRows.length) {
+      finTableHTML += '<table><thead><tr><th>P&amp;L / Balance Sheet</th><th>Consolidated Value</th><th>Basis</th></tr></thead><tbody>' +
+        mRows.map(function(r){
+          return '<tr><td style="font-weight:500">' + r[0] + '</td><td style="font-family:\'DM Mono\',monospace">' + r[1] + '</td><td style="font-size:10.5px;color:var(--muted)">' + (r[0].indexOf('Margin')!==-1 ? 'Computed ratio' : 'Avg across dataset') + '</td></tr>';
+        }).join('') + '</tbody></table>';
+    }
+    if (rRows.length) {
+      finTableHTML += '<p style="margin-top:12px;margin-bottom:5px;font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:2px;text-transform:uppercase;color:var(--muted)">Key Financial Ratios</p>';
+      finTableHTML += '<table><thead><tr><th>Ratio</th><th>Value</th><th>Interpretation</th></tr></thead><tbody>';
+      finTableHTML += rRows.map(function(r){
+        const p  = r[1].split('  ('); const v = p[0]; const i2 = p[1] ? p[1].replace(')','') : '—';
+        const cl = ['Adequate','Strong','Low','Good','Excellent','Comfortable'].some(function(k){return i2.indexOf(k)!==-1;}) ? 'up'
+                 : ['Below threshold','High','Weak'].some(function(k){return i2.indexOf(k)!==-1;}) ? 'dn' : 'neu';
+        return '<tr><td style="font-weight:500">' + r[0] + '</td><td style="font-family:\'DM Mono\',monospace">' + v + '</td><td class="' + cl + '" style="font-weight:600">' + i2 + '</td></tr>';
+      }).join('') + '</tbody></table>';
+    }
+  }
+
+  // ── Five Cs ──
+  let fiveCsHTML = '<p style="color:var(--muted);font-size:12px">Load a dataset to auto-generate Five Cs.</p>';
+  if (cam) {
+    const csRows = [
+      ['Character',  cam.sc_char,  'Promoter track record, CIBIL score, prior credit conduct, litigation history'],
+      ['Capacity',   cam.sc_cap,   'DSCR, revenue trend, EBITDA generation, operating cash flow adequacy'],
+      ['Capital',    cam.sc_capit, 'Debt/Equity ratio, net worth, retained earnings, promoter contribution'],
+      ['Collateral', cam.sc_coll,  'Primary security coverage, LTV, quality and liquidity of assets pledged'],
+      ['Conditions', cam.sc_cond,  'Sector outlook, regulatory environment, EBITDA margins, macroeconomic factors'],
+    ];
+    fiveCsHTML = '<table><thead><tr><th>Dimension</th><th>Score</th><th>Rating</th><th>Assessment Basis</th></tr></thead><tbody>' +
+      csRows.map(function(d) {
+        const sc = d[1]; const rating = sc >= 75 ? 'Strong' : sc >= 55 ? 'Moderate' : 'Weak';
+        const cls = sc >= 75 ? 'up' : sc >= 55 ? 'neu' : 'dn';
+        return '<tr><td style="font-weight:600">' + d[0] + '</td><td style="font-family:\'DM Mono\',monospace;font-weight:700">' + sc + '/100</td><td class="' + cls + '" style="font-weight:600">' + rating + '</td><td style="font-size:11.5px;color:var(--muted)">' + d[2] + '</td></tr>';
+      }).join('') + '</tbody></table>' +
+      '<div style="margin-top:10px;padding:12px 14px;background:var(--cream);border-radius:3px;border-left:3px solid var(--teal2)">' +
+      '<span style="font-family:\'DM Mono\',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted)">Composite Score</span>' +
+      '<div style="font-family:\'Playfair Display\',serif;font-size:20px;font-weight:700;color:' + (score>=80?'var(--teal)':score>=60?'var(--gold)':'var(--rust)') + ';margin-top:2px">' + score + '<span style="font-size:13px;color:var(--muted)">/100 — ' + (cam.verdict) + '</span></div></div>';
+  }
+
+  // ── Flags HTML ──
+  let flagsHTML = '<p style="color:var(--muted);font-size:12px">No flags detected.</p>';
+  if (cam && cam.flags.length) {
+    flagsHTML = cam.flags.map(function(f) {
+      const cls  = f.lvl==='HIGH'?'al-r':f.lvl==='MODERATE'?'al-a':'al-g';
+      const icon = f.lvl==='HIGH'?'⚠':f.lvl==='MODERATE'?'◈':'✓';
+      return '<div class="alert ' + cls + '" style="margin-bottom:10px"><span class="al-icon">' + icon + '</span>' +
+        '<div><strong>' + f.title + '</strong><br>' +
+        '<span style="font-size:11.5px;line-height:1.8">' + f.body + '</span><br>' +
+        '<span style="font-family:\'DM Mono\',monospace;font-size:8px;opacity:.55;margin-top:3px;display:block">Data source: ' + f.src + '</span></div></div>';
+    }).join('');
+  }
+
+  // ── Insights HTML ──
+  let insightsHTML = '<p style="color:var(--muted);font-size:12px">No field observations added. Use Primary Insights page.</p>';
+  if (App.insights.length) {
+    insightsHTML = '<table><thead><tr><th>Date</th><th>Type</th><th>Observation</th><th>Impact</th></tr></thead><tbody>' +
+      App.insights.map(function(ins) {
+        const cls = ins.impact==='positive'?'up':ins.impact==='negative'?'dn':'neu';
+        return '<tr><td style="font-family:\'DM Mono\',monospace;font-size:10px">' + ins.date + '</td><td>' + ins.type + '</td><td style="font-size:11.5px">' + ins.text + '</td><td class="' + cls + '" style="font-weight:600;font-size:11px">' + ins.impact + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  // ── AI Insight Summary — use the rich narrative builder ──
+  const aiText = cam ? buildAIInsightNarrative(cam, company, score) : 'Load a dataset to generate the AI Insight Summary.';
+  const aiInsightHTML = '<div style="background:var(--cream);border-radius:4px;padding:16px 18px;border-left:4px solid var(--teal2)"><p style="font-size:12.5px;line-height:1.9;color:#2a2a35">' + aiText + '</p></div>';
+
+  // ── Build full CAM HTML ──
+  const scoreColor = score>=80?'var(--teal)':score>=60?'var(--gold)':'var(--rust)';
+  const decisionBadge = decision.indexOf('Decline')!==-1?'b-r':decision.indexOf('Refer')!==-1?'b-a':'b-g';
+
+  const html = '<div class="cam-doc">' +
+
+    // Header
+    '<div style="text-align:center;border-bottom:2px solid var(--ink);padding-bottom:14px;margin-bottom:6px">' +
+    '<div style="font-family:\'DM Mono\',monospace;font-size:7.5px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">STRICTLY CONFIDENTIAL — FOR INTERNAL USE ONLY</div>' +
+    '<h1 style="margin-bottom:4px">Credit Appraisal Memorandum</h1>' +
+    '<div style="font-family:\'DM Mono\',monospace;font-size:8.5px;color:var(--muted);letter-spacing:.5px">' + company + ' &nbsp;·&nbsp; CIN: ' + cin + ' &nbsp;·&nbsp; Ref: IC-' + new Date().getFullYear() + '-' + String(Math.floor(Math.random()*9000)+1000) + ' &nbsp;·&nbsp; ' + dateStr + '</div>' +
+    '</div>' +
+
+    // Decision banner
+    '<div style="display:flex;align-items:center;gap:14px;background:var(--ink);border-radius:4px;padding:14px 18px;margin-bottom:18px">' +
+    '<div style="flex:1"><div style="font-family:\'DM Mono\',monospace;font-size:7px;letter-spacing:3px;color:rgba(201,168,76,.5);text-transform:uppercase;margin-bottom:4px">Credit Committee Recommendation</div>' +
+    '<div style="font-family:\'Playfair Display\',serif;font-size:18px;font-weight:700;color:#e8cc7a">' + decision.toUpperCase() + '</div>' +
+    '<div style="font-family:\'DM Mono\',monospace;font-size:10px;color:rgba(255,255,255,.45);margin-top:3px">Rs.' + req + ' Cr requested &nbsp;·&nbsp; Rs.' + rec + ' Cr recommended &nbsp;·&nbsp; ' + rate + '% p.a. &nbsp;·&nbsp; ' + tenor + ' years</div>' +
+    '</div><div style="text-align:center;border-left:1px solid rgba(255,255,255,.1);padding-left:14px">' +
+    '<div style="font-family:\'Playfair Display\',serif;font-size:34px;font-weight:700;color:' + scoreColor + ';line-height:1">' + score + '</div>' +
+    '<div style="font-family:\'DM Mono\',monospace;font-size:9px;color:rgba(255,255,255,.35)">/100 SCORE</div>' +
+    '</div></div>' +
+
+    // 1. Executive Summary
+    '<h2>1. Executive Summary</h2>' +
+    '<p><strong>' + company + '</strong> (' + industry + ') has submitted an application for a <strong>Term Loan of Rs.' + req + ' Crores</strong> to be utilised for ' + (cam ? 'business expansion and working capital requirements' : 'stated business purposes') + '. Following AI-powered multi-source credit analysis' + (cam ? ' of ' + cam.rows + ' financial data records sourced from ' + cam.filename : '') + ', this Credit Appraisal Memorandum recommends <strong>' + decision + '</strong> at a sanctioned limit of <strong>Rs.' + rec + ' Crores</strong> at <strong>' + rate + '% p.a.</strong> for a tenor of <strong>' + tenor + ' years</strong>.</p>' +
+    '<p>The composite credit score of <strong style="color:' + scoreColor + '">' + score + '/100</strong> reflects a <em>' + (cam?cam.verdict:'credit assessment') + '</em>. The assessment incorporates Five Cs analysis, financial ratio benchmarking, and risk flag evaluation across the borrower\'s historical financial data.</p>' +
+
+    // 2. Borrower Profile
+    '<h2>2. Borrower Profile</h2>' +
+    '<table style="margin-bottom:0"><tbody>' +
+    '<tr><td style="font-weight:600;width:38%;background:var(--cream);padding:8px 12px">Company / Borrower Name</td><td style="padding:8px 12px"><strong>' + company + '</strong></td></tr>' +
+    '<tr><td style="font-weight:600;background:var(--cream);padding:8px 12px">CIN / Registration No.</td><td style="padding:8px 12px;font-family:\'DM Mono\',monospace;font-size:12px">' + cin + '</td></tr>' +
+    '<tr><td style="font-weight:600;background:var(--cream);padding:8px 12px">Industry / Sector</td><td style="padding:8px 12px">' + industry + '</td></tr>' +
+    '<tr><td style="font-weight:600;background:var(--cream);padding:8px 12px">Promoter / Director</td><td style="padding:8px 12px">' + promoter + '</td></tr>' +
+    '<tr><td style="font-weight:600;background:var(--cream);padding:8px 12px">Loan Requested</td><td style="padding:8px 12px"><strong>Rs.' + req + ' Crores</strong></td></tr>' +
+    '<tr><td style="font-weight:600;background:var(--cream);padding:8px 12px">Recommended Limit</td><td style="padding:8px 12px"><strong>Rs.' + rec + ' Crores</strong></td></tr>' +
+    '<tr><td style="font-weight:600;background:var(--cream);padding:8px 12px">Interest Rate</td><td style="padding:8px 12px">' + rate + '% p.a. (floating, linked to repo rate)</td></tr>' +
+    '<tr><td style="font-weight:600;background:var(--cream);padding:8px 12px">Tenor</td><td style="padding:8px 12px">' + tenor + ' years (with quarterly repayment)</td></tr>' +
+    '<tr><td style="font-weight:600;background:var(--cream);padding:8px 12px">Assessment Date</td><td style="padding:8px 12px">' + dateStr + '</td></tr>' +
+    '<tr><td style="font-weight:600;background:var(--cream);padding:8px 12px">Data Records Analysed</td><td style="padding:8px 12px;font-family:\'DM Mono\',monospace;font-size:11px">' + (cam ? cam.rows + ' records · ' + cam.cols + ' parameters · ' + cam.filename : 'Manual entry') + '</td></tr>' +
+    '</tbody></table>' +
+
+    // 3. Five Cs
+    (document.getElementById('s-fivecs').checked ? '<h2>3. Five Cs Assessment</h2>' + fiveCsHTML : '') +
+
+    // 4. Financial Summary
+    (document.getElementById('s-fin').checked ? '<h2>4. Financial Summary & Key Ratios</h2>' +
+    '<p style="font-size:11.5px;color:var(--muted);margin-bottom:8px">All figures are computed from dataset averages and represent the borrower\'s consolidated financial position. Values are in Rs. Crores unless otherwise stated.</p>' +
+    finTableHTML : '') +
+
+    // 5. Risk Flags
+    (document.getElementById('s-risk').checked ? '<h2>5. Risk Flags & Mitigants</h2>' +
+    '<p style="font-size:11.5px;color:var(--muted);margin-bottom:10px">The following risk factors were identified through AI analysis of the financial dataset. Each flag includes the severity level, detailed explanation, and recommended mitigant action.</p>' +
+    flagsHTML : '') +
+
+    // 6. Primary Insights
+    (document.getElementById('s-ins').checked && App.insights.length ?
+    '<h2>6. Primary Insights & Field Observations</h2>' + insightsHTML : '') +
+
+    // 7. AI Insight Summary ← new section
+    '<h2>7. AI Insight Summary</h2>' +
+    '<div style="background:linear-gradient(135deg,#edf9f8 0%,#f4f1ea 100%);border-radius:4px;padding:18px 20px;border-left:4px solid var(--teal2);margin-bottom:4px">' +
+    '<div style="font-family:\'DM Mono\',monospace;font-size:7.5px;letter-spacing:2px;text-transform:uppercase;color:var(--teal);margin-bottom:10px">◈ Intelli-Credit AI Engine — Credit Risk Assessment</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">' +
+    // Financial Strength box
+    '<div style="background:white;border-radius:3px;padding:12px;border-top:3px solid var(--teal2)">' +
+    '<div style="font-family:\'DM Mono\',monospace;font-size:7.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Financial Strength</div>' +
+    '<div style="font-size:11.5px;color:#2a2a35;line-height:1.65">' + (cam && cam.avgRev ? (cam.margin>=0.15?'<strong class="up">Strong</strong>':cam.margin>=0.08?'<strong class="neu">Adequate</strong>':'<strong class="dn">Weak</strong>') + ' — EBITDA margin ' + (cam.margin?(cam.margin*100).toFixed(1)+'%':'N/A') + ' on avg revenue Rs.' + (cam.avgRev?cam.avgRev.toFixed(1):'—') + ' Cr.' : 'Revenue data not available.') + '</div>' +
+    '</div>' +
+    // Risk Indicators box
+    '<div style="background:white;border-radius:3px;padding:12px;border-top:3px solid var(--gold)">' +
+    '<div style="font-family:\'DM Mono\',monospace;font-size:7.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Risk Indicators</div>' +
+    '<div style="font-size:11.5px;color:#2a2a35;line-height:1.65">' + (cam ? (cam.flags.filter(function(f){return f.lvl==='HIGH';}).length + ' HIGH · ' + cam.flags.filter(function(f){return f.lvl==='MODERATE';}).length + ' MODERATE flags. DSCR: ' + (cam.avgDSCR?cam.avgDSCR.toFixed(2)+'x':'N/A') + ' · D/E: ' + (cam.deRatio?(cam.deRatio*100).toFixed(0)+'%':'N/A') + '.') : 'Flags will appear after dataset load.') + '</div>' +
+    '</div>' +
+    // Credit Risk Level box
+    '<div style="background:white;border-radius:3px;padding:12px;border-top:3px solid ' + (score>=80?'var(--teal2)':score>=65?'var(--gold)':'var(--rust)') + '">' +
+    '<div style="font-family:\'DM Mono\',monospace;font-size:7.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Overall Credit Risk</div>' +
+    '<div style="font-size:11.5px;line-height:1.65"><strong style="color:' + scoreColor + '">' + (score>=80?'LOW RISK':score>=65?'MODERATE RISK':score>=50?'ELEVATED RISK':'HIGH RISK') + '</strong><br><span style="color:var(--muted)">' + (cam?cam.verdict:'Score: '+score+'/100') + '</span></div>' +
+    '</div>' +
+    '</div>' +
+    '<p style="font-size:12px;line-height:1.85;color:#2a2a35;margin:0">' + aiText + '</p>' +
+    '</div>' +
+
+    // 8. Recommendation & Covenants
+    (document.getElementById('s-cov').checked ?
+    '<h2>8. Recommendation & Covenants</h2>' +
+    '<div style="background:var(--ink);color:#fff;padding:18px 22px;border-radius:4px;margin-bottom:14px;border:1px solid rgba(201,168,76,.2)">' +
+    '<div style="font-family:\'DM Mono\',monospace;font-size:7.5px;letter-spacing:3px;color:rgba(201,168,76,.55);margin-bottom:6px">CREDIT COMMITTEE RECOMMENDATION</div>' +
+    '<div style="font-family:\'Playfair Display\',serif;font-size:21px;font-weight:700;color:#e8cc7a;margin-bottom:4px">' + decision.toUpperCase() + '</div>' +
+    '<div style="font-family:\'DM Mono\',monospace;font-size:10.5px;color:rgba(255,255,255,.5)">Limit: Rs.' + rec + ' Cr &nbsp;·&nbsp; Rate: ' + rate + '% p.a. &nbsp;·&nbsp; Tenor: ' + tenor + ' Years &nbsp;·&nbsp; Score: ' + score + '/100</div>' +
+    '</div>' +
+    '<p style="font-weight:600;margin-bottom:6px">A. Conditions Precedent to Disbursement</p>' +
+    '<p>(a) Audited financial statements (P&amp;L, Balance Sheet, Cash Flow) for last 3 consecutive financial years, certified by a Statutory Auditor.</p>' +
+    '<p>(b) Personal guarantee executed by all promoter-directors holding 10% or more equity stake in the borrowing entity.</p>' +
+    '<p>(c) Creation of first charge by way of mortgage/hypothecation on all primary assets proposed as security, supported by a valuation report from a bank-approved valuer.</p>' +
+    '<p>(d) Satisfactory documentary resolution of all HIGH-severity risk flags identified in Section 5 of this appraisal, including legal opinion on all pending litigations.</p>' +
+    '<p style="font-weight:600;margin-top:10px;margin-bottom:6px">B. Ongoing Financial Covenants</p>' +
+    '<p>(a) Minimum DSCR of 1.25x to be maintained at all times, verified quarterly from management accounts submitted to the Relationship Manager.</p>' +
+    '<p>(b) Debt/Equity ratio not to exceed 1.50x at any point during the facility tenure, without prior written approval of the Sanctioning Authority.</p>' +
+    '<p>(c) Quarterly financial MIS (P&amp;L, Balance Sheet, cash flow statement) to be submitted within 45 days of each quarter end.</p>' +
+    '<p>(d) Audited annual accounts and Auditor\'s Report to be submitted within 180 days of financial year end.</p>' +
+    '<p>(e) No additional secured borrowings, creation of lien on assets, or disposal of primary collateral without prior written consent of the bank.</p>' +
+    '<p>(f) Immediate written notification to the Relationship Manager upon occurrence of any material adverse event, litigation, regulatory action, or key management change.</p>'
+    : '') +
+
+    '<div style="margin-top:22px;padding-top:12px;border-top:1px solid var(--line);font-family:\'DM Mono\',monospace;font-size:8px;color:var(--muted);text-align:center">Generated by Intelli-Credit AI Engine v3.0 &nbsp;·&nbsp; ' + dateStr + ' &nbsp;·&nbsp; STRICTLY CONFIDENTIAL — FOR INTERNAL USE ONLY &nbsp;·&nbsp; Subject to Credit Committee Approval' + (cam ? ' &nbsp;·&nbsp; Data: ' + cam.filename : '') + '</div>' +
+    '</div>';
+
+  document.getElementById('cam-out').innerHTML = html;
+
+  // Sync form fields with sanitized values
+  document.getElementById('cam-company').value = company;
+  document.getElementById('cam-cin').value     = cin;
+  document.getElementById('cam-req').value     = req;
+  document.getElementById('cam-rec').value     = rec;
+
+  toast_('✓ CAM preview generated');
+}
+
+// ═══════════════════════════════════════════════════
+// PDF DOWNLOAD
+// ═══════════════════════════════════════════════════
+function downloadPDF() {
+  const { jsPDF } = window.jspdf;
+  const cam      = App.cam;
+  // Derive fallback name from filename — never hardcode a company name
+  const pdfFilenameCompany = cam
+    ? cam.filename.replace(/\.[^.]+$/, '').replace(/[_\-]/g, ' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); })
+    : '';
+  function pdfValidName(v) { return v && String(v).trim().length > 2 && !/^\d+(\.\d+)?$/.test(String(v).trim()) && !/^(sample|intelli|dataset|test|dummy|demo)/i.test(String(v).trim()); }
+  // Use form value only if it was filled for THIS dataset (not a stale value from a previous one)
+  const companyFieldPDF  = document.getElementById('cam-company');
+  const formSourcePDF    = companyFieldPDF.dataset.camSource || '';
+  const isStaleForPDF    = cam && (formSourcePDF !== (cam.filename || ''));
+  const rawPdfCompany    = companyFieldPDF.value;
+  const company  = (!isStaleForPDF && pdfValidName(rawPdfCompany)) ? rawPdfCompany
+                 : (cam && pdfValidName(cam.company)) ? cam.company
+                 : pdfFilenameCompany || 'Borrower';
+  const cinRaw   = document.getElementById('cam-cin').value;
+  const cin      = (cinRaw && cinRaw.length > 5 && !/^\d+$/.test(cinRaw)) ? cinRaw
+                 : (cam && cam.cin && cam.cin.length > 5 ? cam.cin : 'See company records');
+  const rawReqPdf = document.getElementById('cam-req').value;
+  const req      = (rawReqPdf && rawReqPdf !== '' && parseFloat(rawReqPdf) > 0) ? rawReqPdf
+                 : (cam && cam.avgRev && cam.avgRev > 0 ? (cam.avgRev * 0.18).toFixed(0) : '45');
+  const rec      = document.getElementById('cam-rec').value || (cam && cam.recLimit ? cam.recLimit.toFixed(1) : (parseFloat(req)*0.85).toFixed(1));
+  const rate     = document.getElementById('cam-rate').value || '10.75';
+  const tenor    = document.getElementById('cam-tenor').value || '5';
+  const decision = document.getElementById('cam-decision').value;
+  const score    = App.baseScore + App.insAdj || (cam ? cam.score : 0);
+
+  ['dl-btn','dl-btn2'].forEach(function(id) { const b=document.getElementById(id); if(b){b.textContent='Generating…';b.disabled=true;} });
+  toast_('Building PDF…');
+
+  setTimeout(function() {
+    try {
+      const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+      const W = doc.internal.pageSize.getWidth();
+      const H = doc.internal.pageSize.getHeight();
+      const ML = 18, TW = W - 36;
+      let y = 0;
+      const C = { ink:[10,10,15], teal:[26,92,90], teal2:[42,148,144], gold:[201,168,76], rust:[184,76,42], cream:[234,230,219], muted:[107,101,96], white:[255,255,255] };
+      function s(v) { return String(v||'').replace(/₹/g,'Rs.').replace(/’/g,"'").replace(/‘/g,"'").replace(/“/g,'"').replace(/”/g,'"').replace(/ /g,' ').replace(/–/g,'-').replace(/—/g,'-').replace(/·/g,'-').replace(/×/g,'x').replace(/→/g,'->').replace(/↑/g,'^').replace(/↓/g,'v').replace(/[^\x00-\x7F]/g,''); }
+      function newPage() {
+        doc.addPage(); y = 16;
+        doc.setFillColor.apply(doc, C.cream); doc.rect(0,0,W,8,'F');
+        doc.setFontSize(7); doc.setTextColor.apply(doc, C.muted); doc.setFont('helvetica','normal');
+        doc.text(s(company) + '  |  Credit Appraisal Memorandum  |  CONFIDENTIAL', ML, 5.5);
+        doc.text('Page ' + doc.internal.getCurrentPageInfo().pageNumber, W-ML, 5.5, {align:'right'});
+      }
+      function chk(n) { if (y + n > H - 14) newPage(); }
+      function heading(t) {
+        chk(12); y += 3;
+        doc.setFillColor.apply(doc, C.teal); doc.rect(ML, y, TW, 7, 'F');
+        doc.setTextColor.apply(doc, C.white); doc.setFontSize(8.5); doc.setFont('helvetica','bold');
+        doc.text(t, ML+4, y+4.8); y += 10;
+      }
+      function para(t, opts) {
+        opts = opts || {};
+        const fs = opts.fs || 9; const col = opts.col || C.ink; const ind = opts.ind || 0; const bold = opts.bold || false;
+        doc.setFontSize(fs); doc.setTextColor.apply(doc, col); doc.setFont('helvetica', bold ? 'bold' : 'normal');
+        const lines = doc.splitTextToSize(s(t), TW - ind);
+        chk(lines.length * (fs * 0.44) + 3);
+        doc.text(lines, ML + ind, y); y += lines.length * (fs * 0.44) + 2.5;
+      }
+
+      // COVER
+      doc.setFillColor.apply(doc, C.ink); doc.rect(0, 0, W, 52, 'F');
+      doc.setFillColor.apply(doc, C.gold); doc.rect(0, 52, W, 1.2, 'F');
+      doc.setTextColor.apply(doc, C.gold); doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.text('INTELLI-CREDIT', ML, 17);
+      doc.setFontSize(7); doc.setFont('helvetica','normal'); doc.text('AI-POWERED CREDIT APPRAISAL ENGINE  v3.0', ML, 23);
+      doc.setTextColor.apply(doc, C.white); doc.setFontSize(17); doc.setFont('helvetica','bold');
+      doc.text('Credit Appraisal', ML, 38); doc.text('Memorandum', ML, 47);
+      y = 64;
+      doc.setFontSize(13); doc.setTextColor.apply(doc, C.ink); doc.setFont('helvetica','bold'); doc.text(s(company), ML, y); y += 6;
+      doc.setFontSize(8.5); doc.setTextColor.apply(doc, C.muted); doc.setFont('helvetica','normal');
+      const cinDisplay   = (cin && cin.length > 5 && cin !== 'See company records' && !/^\d+$/.test(cin)) ? cin : 'See company records';
+      const indDisplay   = (cam && cam.industry && cam.industry.length > 2 && !/sample|dataset/i.test(cam.industry))
+                         ? cam.industry
+                         : (cam ? cam.filename.split(/[_\-\s\.]/)[0].replace(/\b\w/g,function(c){return c.toUpperCase();}) : 'As per application');
+      doc.text('CIN: ' + s(cinDisplay), ML, y); y += 5;
+      doc.text('Industry: ' + s(indDisplay), ML, y); y += 5;
+      doc.text('Date: ' + new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'}), ML, y); y += 5;
+      if (cam) doc.text('Dataset: ' + s(cam.filename) + ' (' + cam.rows + ' records, ' + cam.cols + ' columns)', ML, y); y += 12;
+
+      const dc = decision.indexOf('Decline') !== -1 ? C.rust : decision.indexOf('Refer') !== -1 ? [160,120,20] : C.teal;
+      doc.setFillColor.apply(doc, dc); doc.roundedRect(ML, y, TW*0.55, 10, 2, 2, 'F');
+      doc.setTextColor.apply(doc, C.white); doc.setFontSize(8); doc.setFont('helvetica','bold');
+      const decShort = decision.replace('Approve', 'APPROVE').replace('Conditional','CONDITIONAL').replace('Unconditional','UNCONDITIONAL').replace('Decline','DECLINE').replace('Refer to Credit Committee','REFER TO COMMITTEE');
+      doc.text(decShort, ML+4, y+7);
+
+      doc.setFillColor.apply(doc, C.cream); doc.roundedRect(ML + TW*0.6, y-2, TW*0.4, 22, 2, 2, 'F');
+      const scColor = score >= 80 ? C.teal : score >= 60 ? C.gold : C.rust;
+      doc.setTextColor.apply(doc, scColor); doc.setFontSize(20); doc.setFont('helvetica','bold'); doc.text(String(score), ML+TW*0.68, y+12);
+      doc.setFontSize(8); doc.setTextColor.apply(doc, C.muted); doc.setFont('helvetica','normal'); doc.text('/ 100  SCORE', ML+TW*0.68+16, y+12);
+      y += 28;
+
+      doc.setFillColor.apply(doc, C.cream); doc.rect(ML, y, TW, 22, 'F'); doc.setFillColor.apply(doc, C.gold); doc.rect(ML, y, 2, 22, 'F');
+      const reqDisplay = (req && req !== '—') ? 'Rs.' + s(req) + ' Cr' : 'As requested';
+      const recDisplay = (rec && rec !== '—') ? 'Rs.' + s(rec) + ' Cr' : (cam && cam.recLimit ? 'Rs.' + cam.recLimit.toFixed(1) + ' Cr' : 'TBD');
+      const lcols = [['REQUESTED', reqDisplay], ['RECOMMENDED', recDisplay], ['RATE / TENOR', s(rate) + '% / ' + s(tenor) + ' yrs']];
+      lcols.forEach(function(c, i) { const cx = ML+4+i*(TW/3); doc.setFontSize(7); doc.setTextColor.apply(doc, C.muted); doc.setFont('helvetica','bold'); doc.text(c[0], cx, y+6); doc.setFontSize(10); doc.setTextColor.apply(doc, C.ink); doc.setFont('helvetica','bold'); doc.text(c[1], cx, y+16); });
+
+      // PAGE 2
+      newPage();
+      heading('1.  EXECUTIVE SUMMARY');
+      // Robust company name for executive summary
+      const execCompany = (company && company !== '1' && !/^\d+$/.test(company) && company.length > 2)
+        ? company
+        : (cam ? cam.filename.replace(/\.[^.]+$/,'').replace(/[_\-]/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}) : 'The Borrower');
+      const execReq = (req && req !== '—') ? 'Rs.' + s(req) + ' Crores' : 'the requested credit facility';
+      const execRec = (rec && rec !== '—') ? 'Rs.' + s(rec) + ' Crores @ ' + s(rate) + '% p.a. for ' + s(tenor) + ' years' : 'the assessed limit';
+      para(s(execCompany) + ' has applied for a Term Loan of ' + execReq + '. Following AI-powered multi-source analysis' + (cam ? ' of ' + cam.rows + ' financial records from ' + s(cam.filename) : '') + ', this Credit Appraisal Memorandum recommends ' + s(decision) + ' at ' + execRec + '. The composite credit score of ' + score + '/100 reflects a ' + (cam ? s(cam.verdict) : 'credit assessment') + ' based on Five Cs analysis of the borrower\'s financial profile.');
+
+      // BORROWER PROFILE TABLE
+      heading('2.  BORROWER PROFILE');
+      const cinDisp   = (cin && cin.length > 5 && cin !== 'See company records' && !/^\d+$/.test(cin)) ? cin : 'See company records';
+      const indDisp   = (cam && cam.industry && cam.industry.length > 2 && !/sample|dataset/i.test(cam.industry))
+                      ? cam.industry
+                      : (cam ? cam.filename.split(/[_\-\s\.]/)[0].replace(/\b\w/g,function(c){return c.toUpperCase();}) : 'As per loan application');
+      const promoDisp = (cam && cam.promoter && cam.promoter.length > 2 && !/sample|dataset/i.test(cam.promoter))
+                      ? cam.promoter
+                      : 'As per KYC documents';
+      doc.autoTable({
+        startY: y,
+        body:[
+          ['Company / Borrower Name', s(execCompany)],
+          ['CIN / Registration No.',  s(cinDisp)],
+          ['Industry / Sector',       s(indDisp)],
+          ['Promoter / Director',     s(promoDisp)],
+          ['Dataset Records Analysed',cam ? cam.rows + ' records across ' + cam.cols + ' parameters' : 'Manual entry'],
+          ['Loan Requested',          (req && req !== '—') ? 'Rs.' + s(req) + ' Crores' : 'As per application'],
+          ['Recommended Limit',       (rec && rec !== '—') ? 'Rs.' + s(rec) + ' Crores' : 'As assessed'],
+          ['Interest Rate',           s(rate) + '% p.a. (Floating / Fixed as applicable)'],
+          ['Tenor',                   s(tenor) + ' Years'],
+          ['Assessment Date',         new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})],
+          ['Assessed By',             'Intelli-Credit AI Engine v3.0'],
+        ],
+        margin:{left:ML,right:ML},
+        styles:{fontSize:8.5,cellPadding:3.5,lineColor:[220,216,210],lineWidth:0.3},
+        columnStyles:{0:{cellWidth:72,fontStyle:'bold',fillColor:C.cream},1:{fontStyle:'normal'}},
+        alternateRowStyles:{fillColor:[250,248,244]}
+      });
+      y = doc.lastAutoTable.finalY + 6;
+
+      if (cam && document.getElementById('s-fivecs').checked) {
+        heading('3.  FIVE Cs ASSESSMENT  —  Composite Score: ' + score + '/100');
+        chk(8); doc.setFillColor.apply(doc, C.cream); doc.roundedRect(ML, y, TW, 4, 1, 1, 'F');
+        doc.setFillColor.apply(doc, scColor); doc.roundedRect(ML, y, TW * score/100, 4, 1, 1, 'F'); y += 8;
+        doc.autoTable({ startY: y,
+          head:[['Dimension','Score','Rating','Notes']],
+          body:[['Character',cam.sc_char+'/100',cam.sc_char>=75?'Strong':cam.sc_char>=55?'Moderate':'Weak','Promoter history, CIBIL, credit conduct'],['Capacity',cam.sc_cap+'/100',cam.sc_cap>=75?'Strong':cam.sc_cap>=55?'Moderate':'Weak','DSCR, revenue growth, cash flows'],['Capital',cam.sc_capit+'/100',cam.sc_capit>=75?'Strong':cam.sc_capit>=55?'Moderate':'Weak','Debt/Equity, leverage, net worth'],['Collateral',cam.sc_coll+'/100',cam.sc_coll>=75?'Strong':cam.sc_coll>=55?'Moderate':'Weak','Asset coverage, LTV ratio'],['Conditions',cam.sc_cond+'/100',cam.sc_cond>=75?'Strong':cam.sc_cond>=55?'Moderate':'Weak','Sector, margins, macro']],
+          margin:{left:ML,right:ML}, styles:{fontSize:8.5,cellPadding:3,lineColor:[220,216,210],lineWidth:0.3},
+          headStyles:{fillColor:C.ink,textColor:C.white,fontStyle:'bold',fontSize:8},
+          alternateRowStyles:{fillColor:C.cream},
+          didParseCell:function(d){if(d.section==='body'&&d.column.index===2){const v=d.cell.raw;if(v==='Strong')d.cell.styles.textColor=C.teal2;if(v==='Weak')d.cell.styles.textColor=C.rust;}}
+        });
+        y = doc.lastAutoTable.finalY + 6;
+      }
+
+      if (cam && cam.finRows.length && document.getElementById('s-fin').checked) {
+        heading('4.  FINANCIAL SUMMARY  (Consolidated — ' + cam.rows + ' records from ' + s(cam.filename) + ')');
+
+        // Split finRows into P&L/BS metrics vs ratios
+        const RATIO_KEYS = ['DSCR','Debt / Equity','Debt / EBITDA','Interest Coverage','CIBIL','Contingent'];
+        const metricRows = cam.finRows.filter(function(r){ return !RATIO_KEYS.some(function(k){ return r[0].indexOf(k) !== -1; }); });
+        const ratioRows  = cam.finRows.filter(function(r){ return RATIO_KEYS.some(function(k){ return r[0].indexOf(k) !== -1; }); });
+
+        // P&L + Balance Sheet table
+        if (metricRows.length) {
+          chk(10); doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor.apply(doc, C.teal); doc.text('P&L and Balance Sheet Metrics', ML, y); y += 4;
+          doc.autoTable({
+            startY: y,
+            head:[['Metric','Consolidated Value','Basis']],
+            body: metricRows.map(function(r){ return [r[0], r[1], r[0].indexOf('Margin') !== -1 ? 'Computed ratio' : 'Avg across ' + cam.rows + ' records']; }),
+            margin:{left:ML,right:ML},
+            styles:{fontSize:8.5,cellPadding:3.5,lineColor:[220,216,210],lineWidth:0.3},
+            headStyles:{fillColor:C.ink,textColor:C.white,fontStyle:'bold',fontSize:8},
+            columnStyles:{0:{cellWidth:65,fontStyle:'bold'},1:{cellWidth:45},2:{fontSize:8,textColor:C.muted}},
+            alternateRowStyles:{fillColor:C.cream}
+          });
+          y = doc.lastAutoTable.finalY + 6;
+        }
+
+        // Ratios table
+        if (ratioRows.length) {
+          chk(10); doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor.apply(doc, C.teal); doc.text('Key Financial Ratios', ML, y); y += 4;
+          doc.autoTable({
+            startY: y,
+            head:[['Ratio','Value','Interpretation']],
+            body: ratioRows.map(function(r){
+              const parts = r[1].split('  (');
+              return [r[0], parts[0], parts[1] ? parts[1].replace(')','') : '—'];
+            }),
+            margin:{left:ML,right:ML},
+            styles:{fontSize:8.5,cellPadding:3.5,lineColor:[220,216,210],lineWidth:0.3},
+            headStyles:{fillColor:[40,80,78],textColor:C.white,fontStyle:'bold',fontSize:8},
+            columnStyles:{0:{cellWidth:60,fontStyle:'bold'},1:{cellWidth:30},2:{fontStyle:'bold'}},
+            alternateRowStyles:{fillColor:C.cream},
+            didParseCell:function(d){
+              if(d.section==='body' && d.column.index===2){
+                const v = d.cell.raw || '';
+                if(['Adequate','Strong','Low','Comfortable','Good','Excellent'].some(function(k){return v.indexOf(k)!==-1;})) d.cell.styles.textColor=C.teal2;
+                if(['Below threshold','High','Weak'].some(function(k){return v.indexOf(k)!==-1;})) d.cell.styles.textColor=C.rust;
+                if(['Moderate','Minimum'].some(function(k){return v.indexOf(k)!==-1;})) d.cell.styles.textColor=[160,120,20];
+              }
+            }
+          });
+          y = doc.lastAutoTable.finalY + 6;
+        }
+      }
+
+      if (cam && document.getElementById('s-risk').checked) {
+        heading('5.  RISK FLAGS  &  MITIGANTS');
+        // Intro line
+        doc.setFontSize(8); doc.setTextColor.apply(doc, C.muted); doc.setFont('helvetica','normal');
+        doc.text('Risk factors identified through AI analysis. Each flag states severity, financial impact, and required mitigant action.', ML, y); y += 7;
+
+        cam.flags.forEach(function(f) {
+          const fc       = f.lvl === 'HIGH' ? C.rust : f.lvl === 'MODERATE' ? [160, 120, 20] : C.teal2;
+          const bgColor  = f.lvl === 'HIGH' ? [255,240,238] : f.lvl === 'MODERATE' ? [255,248,230] : [237,249,248];
+          // ASCII-only level labels (no Unicode icons that get stripped)
+          const lvlLabel = f.lvl === 'HIGH' ? 'HIGH' : f.lvl === 'MODERATE' ? 'MODERATE' : 'CLEAR';
+
+          chk(35);  // ensure enough space for flag block before drawing
+
+          doc.autoTable({
+            startY: y,
+            body: [
+              [{ content: lvlLabel }, { content: s(f.title) }],
+              [{ content: s(f.body),   colSpan: 2 }],
+              [{ content: 'Source: ' + s(f.src), colSpan: 2 }],
+            ],
+            margin: { left: ML, right: ML },
+            styles: {
+              fontSize: 8.5,
+              cellPadding: { top: 3.5, bottom: 3.5, left: 5, right: 5 },
+              lineColor: [220, 216, 210],
+              lineWidth: 0.3,
+              overflow: 'linebreak',
+              valign: 'top',
+            },
+            columnStyles: {
+              0: { cellWidth: 26 },
+              1: { cellWidth: TW - 26 },
+            },
+            didParseCell: function(d) {
+              if (d.row.index === 0) {
+                d.cell.styles.fillColor = bgColor;
+                if (d.column.index === 0) {
+                  d.cell.styles.fontStyle  = 'bold';
+                  d.cell.styles.fontSize   = 8;
+                  d.cell.styles.textColor  = fc;
+                  d.cell.styles.halign     = 'center';
+                  d.cell.styles.valign     = 'middle';
+                }
+                if (d.column.index === 1) {
+                  d.cell.styles.fontStyle  = 'bold';
+                  d.cell.styles.fontSize   = 9;
+                  d.cell.styles.textColor  = C.ink;
+                }
+              }
+              if (d.row.index === 1) {
+                d.cell.styles.fillColor  = [252, 251, 249];
+                d.cell.styles.textColor  = [50, 50, 55];
+                d.cell.styles.fontSize   = 8.5;
+                d.cell.styles.fontStyle  = 'normal';
+              }
+              if (d.row.index === 2) {
+                d.cell.styles.fillColor  = C.cream;
+                d.cell.styles.textColor  = C.muted;
+                d.cell.styles.fontSize   = 7.5;
+                d.cell.styles.fontStyle  = 'italic';
+              }
+            },
+            didDrawCell: function(d) {
+              // Colored left accent bar on every row
+              doc.setFillColor.apply(doc, fc);
+              doc.rect(d.cell.x, d.cell.y, 2.5, d.cell.height, 'F');
+            }
+          });
+          y = doc.lastAutoTable.finalY + 5;
+        });
+      }
+
+      if (App.insights.length && document.getElementById('s-ins').checked) {
+        heading('6.  PRIMARY INSIGHTS  &  FIELD OBSERVATIONS');
+        doc.autoTable({ startY: y, head:[['Date','Type','Observation','Impact']], body: App.insights.map(function(ins){return [ins.date, ins.type, ins.text.substring(0,80), ins.impact];}), margin:{left:ML,right:ML}, styles:{fontSize:8,cellPadding:3,lineColor:[220,216,210],lineWidth:0.3}, headStyles:{fillColor:C.ink,textColor:C.white,fontStyle:'bold',fontSize:8}, alternateRowStyles:{fillColor:C.cream}});
+        y = doc.lastAutoTable.finalY + 6;
+      }
+
+      // ── 7. AI INSIGHT SUMMARY (always present) ──
+      heading('7.  AI INSIGHT SUMMARY');
+      const aiNarrative = cam ? buildAIInsightNarrative(cam, execCompany, score) : 'Dataset not loaded. AI narrative unavailable.';
+
+      // Three boxes: Financial Strength | Risk Indicators | Credit Risk Level
+      chk(40);
+      const boxW = (TW - 8) / 3;
+      const boxH = 28;
+      const boxLabels = ['Financial Strength', 'Risk Indicators', 'Overall Credit Risk'];
+      const boxColors = [C.teal2, [160,120,20], scColor];
+
+      const highFCount = cam ? cam.flags.filter(function(f){return f.lvl==='HIGH';}).length : 0;
+      const modFCount  = cam ? cam.flags.filter(function(f){return f.lvl==='MODERATE';}).length : 0;
+
+      const boxValues = [
+        cam && cam.margin
+          ? (cam.margin>=0.15 ? 'Strong' : cam.margin>=0.10 ? 'Adequate' : 'Weak') + ' — ' + (cam.margin*100).toFixed(1) + '% EBITDA margin\nRevenue: Rs.' + (cam.avgRev ? cam.avgRev.toFixed(1) : '—') + ' Cr'
+          : 'Revenue data not available',
+        highFCount + ' HIGH  |  ' + modFCount + ' MODERATE\nDSCR: ' + (cam && cam.avgDSCR ? cam.avgDSCR.toFixed(2)+'x' : 'N/A') + '  D/E: ' + (cam && cam.deRatio !== null ? (cam.deRatio*100).toFixed(0)+'%' : 'N/A'),
+        (score>=80?'LOW RISK':score>=65?'MODERATE RISK':score>=50?'ELEVATED RISK':'HIGH RISK') + '\nScore: ' + String(score) + '/100 — ' + (cam ? cam.verdict : 'N/A'),
+      ];
+
+      boxLabels.forEach(function(label, i) {
+        const bx = ML + i * (boxW + 4);
+        doc.setFillColor(245,244,240); doc.roundedRect(bx, y, boxW, boxH, 2, 2, 'F');
+        doc.setFillColor.apply(doc, boxColors[i]); doc.roundedRect(bx, y, boxW, 3.5, 2, 2, 'F');
+        doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor.apply(doc, C.muted);
+        doc.text(label.toUpperCase(), bx+4, y+9);
+        doc.setFontSize(8.5); doc.setTextColor.apply(doc, C.ink); doc.setFont('helvetica','bold');
+        const vlines = doc.splitTextToSize(s(boxValues[i]), boxW-8);
+        vlines.forEach(function(ln, li){ doc.text(ln, bx+4, y+16+li*4.5); });
+      });
+      y += boxH + 8;
+
+      // Narrative paragraph
+      const narrativeLines = doc.splitTextToSize(s(aiNarrative), TW);
+      chk(narrativeLines.length * 4 + 8);
+      doc.setFillColor(237,249,248); doc.rect(ML, y, TW, narrativeLines.length * 4 + 8, 'F');
+      doc.setFillColor.apply(doc, C.teal2); doc.rect(ML, y, 2.5, narrativeLines.length * 4 + 8, 'F');
+      doc.setFontSize(9); doc.setTextColor.apply(doc, C.ink); doc.setFont('helvetica','normal');
+      doc.text(narrativeLines, ML+6, y+5);
+      y += narrativeLines.length * 4 + 12;
+
+      if (document.getElementById('s-cov').checked) {
+        heading('8.  RECOMMENDATION  &  COVENANTS');
+        chk(30); doc.setFillColor.apply(doc, C.ink); doc.roundedRect(ML, y, TW, 28, 2, 2, 'F');
+        doc.setFillColor.apply(doc, C.gold); doc.roundedRect(ML, y, TW, 28, 2, 2, 'S');
+        doc.setFontSize(7.5); doc.setTextColor.apply(doc, C.gold); doc.setFont('helvetica','bold'); doc.text('AI RECOMMENDATION', ML+4, y+6);
+        doc.setFontSize(12); doc.setTextColor(232,204,122); doc.text(s(decision).toUpperCase(), ML+4, y+14);
+        doc.setFontSize(8.5); doc.setTextColor(245,242,235); doc.setFont('helvetica','normal'); doc.text('Limit: Rs.'+s(rec)+' Cr  |  Rate: '+s(rate)+'%  |  Tenor: '+s(tenor)+' yrs  |  Score: '+score+'/100', ML+4, y+21.5);
+        doc.setFontSize(7.5); doc.setTextColor(160,155,150); doc.text('Source: '+(cam?s(cam.filename):'Manual'), ML+4, y+26.5);
+        y += 34;
+        para('A.  Conditions Precedent to Disbursement:', {bold:true, fs:9});
+        [
+          '(a) Audited financial statements (P&L, Balance Sheet, Cash Flow) for last 3 consecutive financial years, certified by a Statutory Auditor.',
+          '(b) Personal guarantee executed by all promoter-directors holding 10% or more equity stake in the borrowing entity.',
+          '(c) First charge by way of mortgage/hypothecation on all primary assets proposed as security, with valuation from a bank-approved valuer.',
+          '(d) Satisfactory documentary resolution of all HIGH-severity risk flags identified in Section 5, including legal opinion on any pending litigations.'
+        ].forEach(function(c){ para(c, {ind:5, col:C.muted, fs:8.5}); });
+        y += 3;
+        para('B.  Ongoing Financial Covenants:', {bold:true, fs:9});
+        [
+          '(a) Minimum DSCR of 1.25x to be maintained at all times, verified quarterly from management accounts.',
+          '(b) Debt/Equity ratio not to exceed 1.50x at any point during the facility tenure without prior written approval.',
+          '(c) Quarterly financial MIS (P&L, Balance Sheet, cash flow) to be submitted within 45 days of quarter end.',
+          '(d) Audited annual accounts and Auditor\'s Report to be submitted within 180 days of financial year end.',
+          '(e) No additional secured borrowings or disposal of primary collateral without prior written consent of the bank.',
+          '(f) Immediate written notification upon occurrence of any material adverse event, litigation, or key management change.'
+        ].forEach(function(c){ para(c, {ind:5, col:C.muted, fs:8.5}); });
+      }
+
+      // Footers
+      const tp = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= tp; i++) {
+        doc.setPage(i);
+        doc.setFillColor.apply(doc, C.cream); doc.rect(0, H-10, W, 10, 'F');
+        doc.setFillColor.apply(doc, C.gold); doc.rect(0, H-10, W, 0.7, 'F');
+        doc.setFontSize(7); doc.setTextColor.apply(doc, C.muted); doc.setFont('helvetica','normal');
+        doc.text('Intelli-Credit AI Engine  |  Confidential  |  Subject to Credit Committee approval', ML, H-4.5);
+        doc.text('Page ' + i + ' / ' + tp, W-ML, H-4.5, {align:'right'});
+      }
+
+      const fname = 'CAM_' + s(company).replace(/[^a-zA-Z0-9]/g,'_') + '_' + new Date().toISOString().slice(0,10) + '.pdf';
+      doc.save(fname);
+      toast_('✓ PDF saved: ' + fname);
+    } catch(err) { console.error(err); toast_('PDF error: ' + err.message); }
+    finally { ['dl-btn','dl-btn2'].forEach(function(id){const b=document.getElementById(id);if(b){b.textContent='⬇ Download PDF';b.disabled=false;}}); }
+  }, 200);
+}
+
+// ═══════════════════════════════════════════════════
+// PRIMARY INSIGHTS
+// ═══════════════════════════════════════════════════
+function submitInsight() {
+  const text = document.getElementById('ins-text').value.trim();
+  if (!text) { toast_('Please enter observation details'); return; }
+  const type   = document.getElementById('ins-type').value;
+  const date   = document.getElementById('ins-date').value;
+  const officer= document.getElementById('ins-officer').value || 'Credit Officer';
+  const impact = document.getElementById('ins-impact').value;
+  const btn    = document.getElementById('ins-btn');
+  btn.textContent = 'Recalculating…'; btn.disabled = true;
+
+  setTimeout(function() {
+    const delta = impact === 'positive' ? 2 : impact === 'negative' ? -2 : 0;
+    App.insights.unshift({ type, date, officer, text, impact });
+    App.insAdj += delta;
+    const newScore = Math.max(0, Math.min(100, (App.baseScore || 0) + App.insAdj));
+
+    const dotCls  = impact === 'negative' ? 'r' : impact === 'neutral' ? 'g' : '';
+    const badgeCls = impact === 'positive' ? 'b-g' : impact === 'negative' ? 'b-r' : 'b-a';
+    const badgeTxt = impact === 'positive' ? '+' + delta + ' pts' : impact === 'negative' ? delta + ' pts' : 'Neutral';
+
+    const log = document.getElementById('ins-log');
+    const hasEmpty = log.querySelector('.empty');
+    if (hasEmpty) log.innerHTML = '';
+
+    const item = document.createElement('div');
+    item.className = 'tl-item';
+    item.innerHTML = '<div class="tl-dot ' + dotCls + '"></div>' +
+      '<div class="tl-date">' + date + ' · ' + type + ' · ' + officer + '</div>' +
+      '<div class="tl-title">' + text.substring(0, 80) + (text.length > 80 ? '…' : '') + '</div>' +
+      '<div class="tl-body">' + text + '</div>' +
+      '<div style="margin-top:5px"><span class="badge ' + badgeCls + '">' + impact.charAt(0).toUpperCase() + impact.slice(1) + ' · ' + badgeTxt + '</span></div>';
+    log.prepend(item);
+
+    document.getElementById('ins-adj').textContent         = (App.insAdj >= 0 ? '+' : '') + App.insAdj;
+    document.getElementById('ins-final-score').textContent = newScore;
+    document.getElementById('ins-base-score').textContent  = App.baseScore || '—';
+
+    btn.textContent = 'Submit & Recalculate Score'; btn.disabled = false;
+    document.getElementById('ins-text').value = '';
+    document.getElementById('ins-officer').value = '';
+    toast_('✓ Insight saved · Score: ' + newScore + '/100');
+  }, 1500);
+}
+
+// ═══════════════════════════════════════════════════
+// VAULT FILTER
+// ═══════════════════════════════════════════════════
+function filterVault() {
+  const q   = (document.getElementById('vault-search').value || '').toLowerCase();
+  const cat = document.getElementById('vault-cat').value;
+  document.querySelectorAll('#vault-body tr').forEach(function(tr) {
+    const name = (tr.dataset.name || '').toLowerCase();
+    const tc   = tr.dataset.cat || '';
+    tr.style.display = (!q || name.indexOf(q) !== -1) && (!cat || tc === cat) ? '' : 'none';
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// VAULT DATASET ROW REBUILD
+//   Regenerates all vault rows that correspond to vaultRegistry entries,
+//   updating Active badges and Switch buttons without touching other docs.
+// ═══════════════════════════════════════════════════
+function rebuildVaultDatasetRows() {
+  var tbody = document.getElementById('vault-body');
+  if (!tbody) return;
+  // Remove ALL existing dataset rows (we'll re-add them from registry)
+  var toRemove = [];
+  for (var i = 0; i < tbody.rows.length; i++) {
+    if (tbody.rows[i].dataset && tbody.rows[i].dataset.cat === 'Dataset') toRemove.push(tbody.rows[i]);
+  }
+  toRemove.forEach(function(r){ tbody.removeChild(r); });
+
+  // Re-insert dataset rows newest-first from vaultRegistry
+  App.vaultRegistry.slice().reverse().forEach(function(entry, ri) {
+    var realIdx = App.vaultRegistry.length - 1 - ri;
+    var isActive = (realIdx === App.activeVaultIdx);
+    var fn = entry.filename.replace(/'/g, "\\'");
+    var tr = document.createElement('tr');
+    tr.dataset.cat  = 'Dataset';
+    tr.dataset.name = entry.filename.toLowerCase();
+    var actionBtns = isActive
+      ? '<button class="btn btn-outline btn-sm" disabled style="opacity:.45;cursor:default;margin-right:3px">Active ✓</button>' +
+        '<button class="btn btn-gold btn-sm" onclick="goPage(\'camgen\');buildPreview();" style="margin-right:3px">CAM ↗</button>'
+      : '<button class="btn btn-teal btn-sm" onclick="switchDataset(' + realIdx + ')" style="margin-right:3px">Switch &amp; Use &#8635;</button>' +
+        '<button class="btn btn-outline btn-sm" onclick="switchDatasetAndCAM(' + realIdx + ')" style="margin-right:3px">Use &amp; CAM ↗</button>';
+    tr.innerHTML =
+      '<td><strong>' + entry.filename + '</strong>' +
+      (isActive ? '<span class="badge b-g" style="font-size:7px;padding:2px 5px;margin-left:5px">Active</span>' : '') +
+      '<br><span style="font-size:10px;color:var(--teal)">&#9670; Score: ' + entry.cam.score + '/100 — ' + entry.cam.verdict + '</span></td>' +
+      '<td><span class="badge b-g">Dataset</span></td>' +
+      '<td style="font-family:\'DM Mono\',monospace;font-size:9px">' + entry.rows + ' rows &middot; ' + entry.cols + ' cols</td>' +
+      '<td style="font-family:\'DM Mono\',monospace;font-size:9px">' + (entry.date ? entry.date.toLocaleDateString('en-IN') : '—') + '</td>' +
+      '<td><span class="badge b-g">Analysed</span></td>' +
+      '<td style="white-space:nowrap">' +
+        '<button class="btn btn-outline btn-sm" onclick="switchDatasetAndView(' + realIdx + ')" style="margin-right:3px">View</button>' +
+        actionBtns +
+      '</td>';
+    tbody.prepend(tr);
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// VAULT FILE UPLOAD
+//   Smart handler: CSV/Excel/JSON → full ingest pipeline (parse → CAM → activate)
+//   Other file types → add as document row only (no data parsing)
+// ═══════════════════════════════════════════════════
+function addVaultFiles(files) {
+  Array.from(files).forEach(function(file) {
+    var ext = file.name.split('.').pop().toLowerCase();
+    var isDataset = ['csv', 'xlsx', 'xls', 'json'].indexOf(ext) !== -1;
+
+    if (isDataset) {
+      // Route through full ingest pipeline — same as Data Ingestor drop
+      toast_('⟳ Parsing dataset: ' + file.name + '…');
+      ingestFile(file);
+      // ingestFile calls processDataset → activateDataset → addToVault → rebuildVaultDatasetRows
+      // which handles everything including vault row creation and active-state display
+      return;
+    }
+
+    // Non-dataset file — just add as a document row in vault
+    var tbody = document.getElementById('vault-body');
+    var catMap = { pdf:'Structured', doc:'Unstructured', docx:'Unstructured', txt:'Unstructured', png:'Unstructured', jpg:'Unstructured' };
+    var cat = catMap[ext] || 'External';
+    var tr = document.createElement('tr');
+    tr.dataset.cat  = cat;
+    tr.dataset.name = file.name.toLowerCase();
+    tr.innerHTML =
+      '<td><strong>' + file.name + '</strong></td>' +
+      '<td><span class="badge b-b">' + cat + '</span></td>' +
+      '<td style="font-family:\'DM Mono\',monospace;font-size:9px">' + (file.size / 1048576).toFixed(1) + ' MB</td>' +
+      '<td style="font-family:\'DM Mono\',monospace;font-size:9px">' + new Date().toLocaleDateString('en-IN') + '</td>' +
+      '<td><span class="badge b-a" id="vstatus-' + Date.now() + '">Processing</span></td>' +
+      '<td><button class="btn btn-outline btn-sm" onclick="toast_(\'Document viewer coming soon\')">View</button></td>';
+    tbody.prepend(tr);
+    // Simulate processing complete
+    setTimeout(function() {
+      var b = tr.querySelector('.badge.b-a');
+      if (b) { b.className = 'badge b-g'; b.textContent = 'Stored'; }
+    }, 1800);
+    toast_('✓ ' + file.name + ' added to Vault');
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// RESEARCH AGENT
+// ═══════════════════════════════════════════════════
+function runResearch() {
+  const btn = document.getElementById('research-btn');
+  btn.textContent = '⟳ Searching…'; btn.disabled = true;
+  document.getElementById('research-count').textContent = 'Searching…';
+  setTimeout(function() {
+    btn.textContent = 'Run Research ↗'; btn.disabled = false;
+    document.getElementById('research-count').textContent = '8 results';
+    toast_('✓ Research complete');
+  }, 2000);
+}
+
+// ═══════════════════════════════════════════════════
+// HISTORY FILTER
+// ═══════════════════════════════════════════════════
+function filterHistory() {
+  const q = (document.getElementById('hist-q').value || '').toLowerCase();
+  const f = document.getElementById('hist-f').value;
+  document.querySelectorAll('#hist-list .hist-item').forEach(function(item) {
+    const txt = item.textContent.toLowerCase();
+    const v   = item.dataset.v || '';
+    item.style.display = (!q || txt.indexOf(q) !== -1) && (!f || v.toLowerCase().indexOf(f.toLowerCase()) !== -1) ? '' : 'none';
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════
+window.addEventListener('load', function() {
+  // Animate progress bars
+  document.querySelectorAll('.pfill').forEach(function(el) {
+    const w = el.style.width; el.style.width = '0';
+    setTimeout(function() { el.style.width = w; }, 400);
+  });
+});
+</script>
+</body></html>
