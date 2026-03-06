@@ -1,11 +1,6 @@
-# Intelli-Credit — AI Credit Appraisal Engine
+<img width="1909" height="909" alt="image" src="https://github.com/user-attachments/assets/1d16ff49-c247-4d09-8837-34f332f0c63e" /># Intelli-Credit — AI Credit Appraisal Engine
 
 A fully client-side, single-file AI-powered Credit Appraisal Memorandum (CAM) generator for banking and credit analysis.
-
-## Live Demo
-
-> Open `index.html` directly in any browser — no server, no install, no dependencies to manage.
-> Or host on GitHub Pages for a shareable live link.
 
 ---
 
@@ -59,15 +54,6 @@ Datasets should contain financial columns such as revenue, EBITDA, PAT, debt, eq
 
 ---
 
-## Deployment on GitHub Pages
-
-1. Fork or clone this repository
-2. Go to **Settings → Pages**
-3. Set source to `main` branch, root folder
-4. Your app will be live at `https://<your-username>.github.io/<repo-name>/`
-
----
-
 ## Tech Stack
 
 | Library | Purpose |
@@ -83,6 +69,8 @@ All libraries are loaded from CDN. The entire application is a **single HTML fil
 
 ## Screenshots
 
+
+
 > Upload a dataset → instant AI credit score → professional CAM PDF
 
 ---
@@ -93,6 +81,3 @@ Intelli-Credit is a decision-support tool. All credit decisions must be reviewed
 
 ---
 
-## License
-
-MIT License — free to use, modify, and distribute.
