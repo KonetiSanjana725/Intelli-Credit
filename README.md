@@ -42,6 +42,7 @@ A fully client-side, single-file AI-powered Credit Appraisal Memorandum (CAM) ge
 
 Datasets should contain financial columns such as revenue, EBITDA, PAT, debt, equity, DSCR, CIBIL score, litigation exposure, etc. The engine auto-maps column names using keyword matching.
 
+
 ---
 
 ## Usage
